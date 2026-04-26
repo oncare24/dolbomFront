@@ -1,192 +1,116 @@
-// backgroundLocation import는 index.ts에서 처리함
+// 보살핌 - 컴포넌트 검증용 임시 화면
+// 발표 후 실제 화면 (로그인/메인/길안내 등) 연결 시점에 이 파일 통째로 교체 예정.
+
 import React, { useState } from "react";
+import { View, StyleSheet, SafeAreaView, ScrollView } from "react-native";
+
 import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  ActivityIndicator,
-  Alert,
-} from "react-native";
+  PrimaryButton,
+  SecondaryButton,
+  DangerButton,
+} from "./src/components/common/Button";
+import { AppText } from "./src/components/common/Text";
+import { AppTextInput } from "./src/components/common/Input";
 
-// 기존 백그라운드 위치 테스트
-import LocationTestScreen from "./src/screens/protectee/LocationTestScreen";
-
-// 카드 길안내
-import NavigationScreen from "./src/components/elderly/NavigationScreen";
-import { MOCK_TMAP_RESPONSE } from "./src/mocks/mockTmapResponse";
-import { parseTmapResponse, logCards } from "./src/utils/tmapCardParser";
-import { fetchRouteFromCurrentLocation } from "./src/services/tmapService";
-
-import type { TmapResponse } from "./src/types/navigation";
-
-type Screen = "home" | "location" | "navigation";
-
-// ── 테스트용 목적지 (금오공대 정문 부근) ──
-const TEST_DESTINATION = {
-  lat: 36.1456,
-  lng: 128.3932,
-  name: "금오공과대학교",
-};
+import { Colors } from "./src/theme/colors";
+import { Spacing } from "./src/theme/spacing";
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>("home");
-  const [tmapResponse, setTmapResponse] = useState<TmapResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  // 입력창 테스트용 state (검증 후 삭제)
+  const [testName, setTestName] = useState("");
+  const [testPhone, setTestPhone] = useState("");
+  const [testPassword, setTestPassword] = useState("");
+  const [testWithError, setTestWithError] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
 
-  // ── Mock 데이터로 길안내 ──
-  function startWithMock() {
-    const route = parseTmapResponse(MOCK_TMAP_RESPONSE);
-    logCards(route.cards);
-    setTmapResponse(MOCK_TMAP_RESPONSE);
-    setCurrentScreen("navigation");
-  }
-
-  // ── 실제 Tmap API로 길안내 ──
-  async function startWithRealApi() {
-    setIsLoading(true);
-    try {
-      const response = await fetchRouteFromCurrentLocation(
-        TEST_DESTINATION.lat,
-        TEST_DESTINATION.lng,
-        TEST_DESTINATION.name,
-      );
-
-      const route = parseTmapResponse(response);
-      logCards(route.cards);
-      console.log(
-        `[실제API] ${route.cards.length}장, ${route.totalDistance}m, 좌표 ${route.fullPath.length}개`,
-      );
-
-      setTmapResponse(response);
-      setCurrentScreen("navigation");
-    } catch (error: any) {
-      console.error("[Tmap API 에러]", error);
-      Alert.alert(
-        "경로 요청 실패",
-        `${error.message}\n\nappKey를 확인하거나 Mock 데이터로 테스트하세요.`,
-        [
-          { text: "Mock으로 테스트", onPress: startWithMock },
-          { text: "확인", style: "cancel" },
-        ],
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  // ── 백그라운드 위치 테스트 ──
-  if (currentScreen === "location") {
-    return (
-      <View style={{ flex: 1 }}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => setCurrentScreen("home")}
-        >
-          <Text style={styles.backButtonText}>← 홈으로</Text>
-        </TouchableOpacity>
-        <LocationTestScreen />
-      </View>
-    );
-  }
-
-  // ── 카드 길안내 ──
-  if (currentScreen === "navigation" && tmapResponse) {
-    return (
-      <NavigationScreen
-        tmapResponse={tmapResponse}
-        onNavigationEnd={() => {
-          console.log("[App] 길안내 종료");
-          setTmapResponse(null);
-          setCurrentScreen("home");
-        }}
-      />
-    );
-  }
-
-  // ── 홈 ──
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>보살핌 프로토타입</Text>
-      <Text style={styles.subtitle}>테스트할 기능을 선택하세요</Text>
-
-      {/* 로딩 오버레이 */}
-      {isLoading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color="#FFFFFF" />
-          <Text style={styles.loadingOverlayText}>경로 요청 중...</Text>
-        </View>
-      )}
-
-      {/* 1. 백그라운드 위치 */}
-      <TouchableOpacity
-        style={[styles.menuButton, { backgroundColor: "#4CAF50" }]}
-        onPress={() => setCurrentScreen("location")}
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.menuIcon}>📍</Text>
-        <View style={styles.menuTextArea}>
-          <Text style={styles.menuTitle}>백그라운드 위치 테스트</Text>
-          <Text style={styles.menuDesc}>
-            30분 간격 GPS 수집 · 파일 로그 확인
-          </Text>
+        {/* ─── 페이지 타이틀 ─── */}
+        <View style={styles.header}>
+          <AppText variant="h1" color="primary">
+            컴포넌트 검증
+          </AppText>
+          <AppText variant="caption" color="secondary" style={{ marginTop: 4 }}>
+            발표 후 실제 화면으로 교체 예정
+          </AppText>
         </View>
-      </TouchableOpacity>
 
-      {/* 2. 실제 Tmap API 길안내 */}
-      <TouchableOpacity
-        style={[styles.menuButton, { backgroundColor: "#1565C0" }]}
-        onPress={startWithRealApi}
-        disabled={isLoading}
-      >
-        <Text style={styles.menuIcon}>🗺️</Text>
-        <View style={styles.menuTextArea}>
-          <Text style={styles.menuTitle}>실제 경로 길안내</Text>
-          <Text style={styles.menuDesc}>
-            현재위치 → {TEST_DESTINATION.name} (Tmap API)
-          </Text>
+        {/* ─── 버튼 테스트 ─── */}
+        <View style={styles.section}>
+          <AppText variant="h2" color="primary" style={styles.sectionTitle}>
+            버튼
+          </AppText>
+
+          <View style={{ gap: Spacing.sm }}>
+            <PrimaryButton
+              label="병원 추천받기"
+              onPress={() => alert("primary 눌림")}
+            />
+            <SecondaryButton
+              label="취소"
+              onPress={() => alert("secondary 눌림")}
+            />
+            <DangerButton
+              label="긴급 호출"
+              onPress={() => alert("danger 눌림")}
+            />
+          </View>
         </View>
-      </TouchableOpacity>
 
-      {/* 3. Mock 데이터 길안내 */}
-      <TouchableOpacity
-        style={[styles.menuButton, { backgroundColor: "#37474F" }]}
-        onPress={startWithMock}
-      >
-        <Text style={styles.menuIcon}>🧪</Text>
-        <View style={styles.menuTextArea}>
-          <Text style={styles.menuTitle}>Mock 데이터 길안내</Text>
-          <Text style={styles.menuDesc}>
-            가상 경로 · API 없이 카드 UI + TTS 테스트
-          </Text>
+        {/* ─── 입력창 테스트 ─── */}
+        <View style={styles.section}>
+          <AppText variant="h2" color="primary" style={styles.sectionTitle}>
+            입력창
+          </AppText>
+
+          <View style={{ gap: Spacing.md }}>
+            <AppTextInput
+              label="이름"
+              value={testName}
+              onChangeText={setTestName}
+              placeholder="홍길동"
+              helperText="실명을 입력해주세요"
+            />
+
+            <AppTextInput
+              label="전화번호"
+              value={testPhone}
+              onChangeText={setTestPhone}
+              placeholder="010-0000-0000"
+              keyboardType="phone-pad"
+              maxLength={13}
+            />
+
+            <AppTextInput
+              label="비밀번호"
+              value={testPassword}
+              onChangeText={setTestPassword}
+              placeholder="6자 이상"
+              secureTextEntry
+            />
+
+            <AppTextInput
+              label="에러 테스트"
+              value={testWithError}
+              onChangeText={setTestWithError}
+              placeholder="아무거나 입력 후 아래 버튼"
+              error={errorMsg}
+            />
+
+            <PrimaryButton
+              label={errorMsg ? "에러 해제" : "에러 트리거 (흔들림 확인)"}
+              onPress={() => {
+                setErrorMsg(errorMsg ? "" : "잘못된 형식입니다");
+              }}
+            />
+          </View>
         </View>
-      </TouchableOpacity>
-
-      {/* 4. 파싱만 테스트 */}
-      <TouchableOpacity
-        style={[styles.menuButton, { backgroundColor: "#263238" }]}
-        onPress={() => {
-          const route = parseTmapResponse(MOCK_TMAP_RESPONSE);
-          logCards(route.cards);
-          alert(
-            `파싱 성공!\n${route.cards.length}장 카드\n${route.totalDistance}m\n콘솔에서 상세 확인`,
-          );
-        }}
-      >
-        <Text style={styles.menuIcon}>🔍</Text>
-        <View style={styles.menuTextArea}>
-          <Text style={styles.menuTitle}>파싱만 테스트</Text>
-          <Text style={styles.menuDesc}>
-            Expo Go에서도 가능 · 콘솔에서 결과 확인
-          </Text>
-        </View>
-      </TouchableOpacity>
-
-      <Text style={styles.footer}>
-        실제 경로 / Mock 길안내는 EAS Dev Build 필요{"\n"}
-        파싱 테스트는 Expo Go에서도 가능{"\n"}
-        tmapService.ts에 appKey 입력 필요
-      </Text>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -194,81 +118,20 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#121212",
-    paddingHorizontal: 20,
-    paddingTop: 60,
+    backgroundColor: Colors.surface.background, // 흰색 (시니어 화면 표준)
   },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#FFFFFF",
-    marginBottom: 4,
+  scrollContent: {
+    paddingHorizontal: Spacing.md, // 16dp
+    paddingTop: Spacing.lg, // 24dp
+    paddingBottom: Spacing.xxxl, // 64dp (하단 여유)
   },
-  subtitle: {
-    fontSize: 16,
-    color: "#9E9E9E",
-    marginBottom: 32,
+  header: {
+    marginBottom: Spacing.xl, // 32dp
   },
-  menuButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 12,
+  section: {
+    marginBottom: Spacing.xl, // 32dp
   },
-  menuIcon: {
-    fontSize: 32,
-    marginRight: 16,
-  },
-  menuTextArea: {
-    flex: 1,
-  },
-  menuTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#FFFFFF",
-    marginBottom: 4,
-  },
-  menuDesc: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.7)",
-  },
-  backButton: {
-    position: "absolute",
-    top: 20,
-    left: 16,
-    zIndex: 100,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  backButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  loadingOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 999,
-  },
-  loadingOverlayText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    marginTop: 12,
-  },
-  footer: {
-    marginTop: 24,
-    fontSize: 13,
-    color: "#616161",
-    textAlign: "center",
-    lineHeight: 20,
+  sectionTitle: {
+    marginBottom: Spacing.md, // 16dp
   },
 });
