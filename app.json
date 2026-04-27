@@ -6,22 +6,18 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "androidStatusBar": {
+      "barStyle": "dark-content",
+      "backgroundColor": "#F5F6F8"
+    },
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
-    "ios": {
-      "supportsTablet": true,
-      "infoPlist": {
-        "NSSpeechRecognitionUsageDescription": "음성 인식 기능을 사용하기 위해 권한이 필요합니다.",
-        "NSMicrophoneUsageDescription": "음성 인식을 위해 마이크 접근이 필요합니다."
-      }
+      "backgroundColor": "#F5F6F8"
     },
     "android": {
       "package": "com.haeram.dolbom",
       "softwareKeyboardLayoutMode": "pan",
-
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -34,9 +30,7 @@
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "RECORD_AUDIO"
       ],
       "predictiveBackGestureEnabled": false
     },
@@ -53,12 +47,14 @@
       [
         "@jamsch/expo-speech-recognition",
         {
-          "microphonePermission": "음성 인식을 위해 마이크 접근이 필요합니다.",
-          "speechRecognitionPermission": "음성 인식 기능을 사용하기 위해 권한이 필요합니다."
+          "microphonePermission": "음성으로 입력하기 위해 마이크를 사용합니다.",
+          "speechRecognitionPermission": "음성을 글로 옮기기 위해 음성 인식을 사용합니다.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
         }
       ],
       "expo-secure-store",
-      "expo-background-task",
       [
         "expo-location",
         {
