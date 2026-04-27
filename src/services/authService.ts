@@ -1,82 +1,81 @@
-// 인증 관련 API 호출 함수 (Mock 구현).
-// 백엔드 연동 시 함수 내부만 axios 호출로 교체. 시그니처 유지.
+// 인증 흐름 API. 백엔드 ApiResponse는 api.ts 인터셉터에서 unwrap되므로
+// 여기서는 data만 받음.
+//
+// 이 파일에는 토큰을 다루는 흐름만 둠 (signup, login, logout).
+// user 정보 조회/수정은 userService.ts.
 
-import type { AuthUser } from "../stores/authStore";
+import { api } from "./api";
+import type { UserRole } from "../stores/authStore";
+import type { BackendRole } from "./userService";
+
+// ───────────────────────────────────────────────────────
+// auth 흐름 전용 헬퍼
+// ───────────────────────────────────────────────────────
+function toBackendRole(role: UserRole): BackendRole {
+  return role === "elderly" ? "ELDER" : "GUARDIAN";
+}
+
+function stripPhone(phoneWithHyphens: string): string {
+  return phoneWithHyphens.replace(/\D/g, "");
+}
+
+// ───────────────────────────────────────────────────────
+// DTO
+// ───────────────────────────────────────────────────────
+export interface SignupRequest {
+  phone: string; // "010-1234-5678" 또는 "01012345678" 둘 다 OK (자동 정리)
+  password: string; // 6자리 숫자
+  name: string;
+  role: UserRole;
+}
+
+export interface SignupResponseRaw {
+  userId: number;
+  phone: string;
+  name: string;
+  role: BackendRole;
+}
 
 export interface LoginRequest {
-  phoneNumber: string; // "010-1234-5678" 형식 (하이픈 포함)
+  phone: string;
   password: string;
 }
 
-export interface LoginResponse {
+export interface TokenResponse {
   accessToken: string;
-  refreshToken?: string;
-  user: AuthUser;
+  refreshToken: string;
+  accessTokenExpiresIn: number;
 }
 
-// ─── Mock 데이터 ───
-// 테스트용 계정 2개 (피보호자 / 보호자)
-const MOCK_USERS: Array<{
-  phoneNumber: string;
-  password: string;
-  user: AuthUser;
-}> = [
-  {
-    phoneNumber: "010-1111-1111",
-    password: "1111",
-    user: {
-      id: 1,
-      name: "김복자",
-      phoneNumber: "010-1111-1111",
-      role: "elderly",
-    },
-  },
-  {
-    phoneNumber: "010-2222-2222",
-    password: "2222",
-    user: {
-      id: 2,
-      name: "박철수",
-      phoneNumber: "010-2222-2222",
-      role: "guardian",
-    },
-  },
-];
+// ───────────────────────────────────────────────────────
+// API
+// ───────────────────────────────────────────────────────
 
-/**
- * 로그인 API (Mock)
- * 실제 동작:
- * - 1초 지연 (실제 네트워크 흉내)
- * - 휴대폰 번호 + 비밀번호 일치 시 → 토큰 + 유저 정보 반환
- * - 불일치 시 → throw Error
- *
- * 백엔드 연동 시:
- * return await axios.post('/api/auth/login', body).then(res => res.data);
- */
-export async function login(body: LoginRequest): Promise<LoginResponse> {
-  // 네트워크 지연 흉내 (1초)
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-
-  const matched = MOCK_USERS.find(
-    (u) => u.phoneNumber === body.phoneNumber && u.password === body.password,
-  );
-
-  if (!matched) {
-    throw new Error("휴대폰 번호 또는 비밀번호가 일치하지 않습니다");
-  }
-
-  // Mock JWT (실제 백엔드는 진짜 JWT 발급)
-  return {
-    accessToken: `mock-token-${matched.user.id}-${Date.now()}`,
-    user: matched.user,
-  };
+/** 회원가입. 성공 시 SignupResponseRaw 반환. */
+export async function signup(body: SignupRequest): Promise<SignupResponseRaw> {
+  const res = await api.post<SignupResponseRaw>("/api/auth/signup", {
+    phone: stripPhone(body.phone),
+    password: body.password,
+    name: body.name,
+    role: toBackendRole(body.role),
+  });
+  return res.data;
 }
 
-/**
- * 로그아웃 API (Mock)
- * 백엔드 연동 시: 서버에 토큰 무효화 요청
- */
+/** 로그인. 토큰만 반환 — user 정보는 호출 측에서 userService.getMe()로 조회. */
+export async function login(body: LoginRequest): Promise<TokenResponse> {
+  const res = await api.post<TokenResponse>("/api/auth/login", {
+    phone: stripPhone(body.phone),
+    password: body.password,
+  });
+  return res.data;
+}
+
+/** 로그아웃. 서버 쪽 refresh 토큰 무효화 + 클라이언트 store 초기화는 호출 측에서. */
 export async function logout(): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  // 서버 토큰 무효화는 클라이언트 store에서 처리
+  try {
+    await api.post("/api/auth/logout");
+  } catch {
+    // 토큰이 이미 만료됐어도 클라 정리는 진행해야 하므로 무시
+  }
 }

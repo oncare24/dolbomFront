@@ -1,5 +1,8 @@
-// 인증 상태 관리. 자동 로그인을 위해 secure-store에 persist.
-// 백엔드 연동 시 hydrate 시점에 토큰 검증 API 호출 추가 예정.
+// 인증 상태 관리. secure-store에 persist (앱 재시작 시 자동 로그인).
+//
+// 변경점(2026-04-28):
+//  - refreshToken 추가 저장
+//  - updateTokens(): axios 인터셉터의 자동 재발급 시 토큰만 갱신용
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
@@ -10,7 +13,7 @@ export type UserRole = "elderly" | "guardian";
 export interface AuthUser {
   id: number;
   name: string;
-  phoneNumber: string;
+  phoneNumber: string; // 표시용. 하이픈 포함 형식.
   role: UserRole;
 }
 
@@ -19,25 +22,21 @@ interface AuthState {
   isAuthenticated: boolean;
   user: AuthUser | null;
   accessToken: string | null;
-  isHydrated: boolean; // persist 복원 완료 여부 (스플래시 → 화면 전환 분기에 사용)
+  refreshToken: string | null;
+  isHydrated: boolean;
 
   // 액션
-  login: (token: string, user: AuthUser) => void;
+  login: (accessToken: string, refreshToken: string, user: AuthUser) => void;
+  updateTokens: (accessToken: string, refreshToken: string) => void;
   logout: () => void;
   _setHydrated: () => void;
 }
 
-// secure-store를 zustand persist 어댑터로 변환
 const secureStorage = {
-  getItem: async (key: string) => {
-    return await SecureStore.getItemAsync(key);
-  },
-  setItem: async (key: string, value: string) => {
-    await SecureStore.setItemAsync(key, value);
-  },
-  removeItem: async (key: string) => {
-    await SecureStore.deleteItemAsync(key);
-  },
+  getItem: async (key: string) => SecureStore.getItemAsync(key),
+  setItem: async (key: string, value: string) =>
+    SecureStore.setItemAsync(key, value),
+  removeItem: async (key: string) => SecureStore.deleteItemAsync(key),
 };
 
 export const useAuthStore = create<AuthState>()(
@@ -46,19 +45,25 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       user: null,
       accessToken: null,
+      refreshToken: null,
       isHydrated: false,
 
-      login: (token, user) =>
+      login: (accessToken, refreshToken, user) =>
         set({
           isAuthenticated: true,
-          accessToken: token,
+          accessToken,
+          refreshToken,
           user,
         }),
+
+      updateTokens: (accessToken, refreshToken) =>
+        set({ accessToken, refreshToken }),
 
       logout: () =>
         set({
           isAuthenticated: false,
           accessToken: null,
+          refreshToken: null,
           user: null,
         }),
 
@@ -67,14 +72,13 @@ export const useAuthStore = create<AuthState>()(
     {
       name: "auth-storage",
       storage: createJSONStorage(() => secureStorage),
-      // hydration 완료 시점 알림 (App.tsx에서 스플래시 분기에 사용)
       onRehydrateStorage: () => (state) => {
         state?._setHydrated();
       },
-      // isHydrated는 persist 대상에서 제외 (매번 false로 시작해야 함)
       partialize: (state) => ({
         isAuthenticated: state.isAuthenticated,
         accessToken: state.accessToken,
+        refreshToken: state.refreshToken,
         user: state.user,
       }),
     },

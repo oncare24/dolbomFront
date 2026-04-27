@@ -18,3 +18,10 @@ export interface SafetyZone {
 export const SAFETY_ZONE_MAX_COUNT = 5;
 export const SAFETY_ZONE_MIN_RADIUS = 200;
 export const SAFETY_ZONE_MAX_RADIUS = 1000;
+
+export type SafetyZoneFormValues = Omit<
+  SafetyZone,
+  "id" | "lastVisitedMinutesAgo" | "notificationEnabled"
+> & {
+  notificationEnabled: boolean;
+};

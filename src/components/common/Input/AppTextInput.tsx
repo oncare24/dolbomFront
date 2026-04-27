@@ -93,6 +93,7 @@ export const AppTextInput: React.FC<AppTextInputProps> = ({
     }
   }, [error]);
 
+  // 변경 후
   const animatedContainerStyle = useAnimatedStyle(() => {
     const borderColor = error
       ? Colors.semantic.danger
@@ -104,7 +105,6 @@ export const AppTextInput: React.FC<AppTextInputProps> = ({
 
     return {
       borderColor,
-      borderWidth: focusProgress.value > 0.5 || !!error ? 2 : 1.5,
       transform: [{ translateX: shakeX.value }],
     };
   });
@@ -183,6 +183,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     flexDirection: "row", // ★ rightSlot 가로 배치
     alignItems: "center", // ★
+    borderWidth: 2, // ★ 항상 2 고정 (focus는 borderColor만 변경, layout shift 차단)
   },
   input: {
     flex: 1,

@@ -1,11 +1,12 @@
 // Step 2: 프로필 입력 (휴대폰 + 이름)
-// 휴대폰: 자동 하이픈 포맷 (010-0000-0000).
-// 이름: 한글 2~20자.
-// react-hook-form + Controller로 AppTextInput과 연동.
-// 검증 통과 시에만 "다음" 버튼 활성화.
+//
+// 키보드 처리: KeyboardAwareScrollView로 폼 + 하단 버튼 함께 감싸면
+// 키보드가 올라올 때 자동으로 focused input이 visible 영역으로 스크롤되고,
+// "다음" 버튼은 키보드 위로 올라옴 (시중 앱 표준 패턴, 토스/카카오뱅크 동일).
 
 import React, { useCallback } from "react";
 import { StyleSheet, View, Keyboard } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Controller, useFormContext } from "react-hook-form";
 import { AppTextInput } from "../common/Input";
 import { PrimaryButton } from "../common/Button";
@@ -16,7 +17,6 @@ interface Props {
   onNext: () => void;
 }
 
-// 010-0000-0000 자동 하이픈
 function formatPhone(input: string): string {
   const digits = input.replace(/\D/g, "").slice(0, 11);
   if (digits.length <= 3) return digits;
@@ -30,12 +30,9 @@ export function SignupStepProfile({ onNext }: Props) {
   const phone = watch("phone");
   const name = watch("name");
 
-  // 이 step에서만 검증할 필드들
   const validateStep = useCallback(async () => {
-    // 우선 form 자체 검증 트리거
     const ok = await trigger(["phone", "name"]);
     if (!ok) return false;
-    // zod sub-schema로 한 번 더 (방어적)
     const result = profileSchema.safeParse({ phone, name });
     return result.success;
   }, [trigger, phone, name]);
@@ -46,12 +43,16 @@ export function SignupStepProfile({ onNext }: Props) {
     if (ok) onNext();
   };
 
-  // 버튼 활성 조건: 형식상 입력이 다 찼을 때만 (디테일 검증은 onChange로 표시)
   const canSubmit =
     /^010-\d{4}-\d{4}$/.test(phone ?? "") && (name ?? "").trim().length >= 2;
 
   return (
-    <View style={styles.container}>
+    <KeyboardAwareScrollView
+      contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps="handled"
+      bottomOffset={Spacing.lg}
+      showsVerticalScrollIndicator={false}
+    >
       <View style={styles.fields}>
         <Controller
           control={control}
@@ -104,13 +105,13 @@ export function SignupStepProfile({ onNext }: Props) {
           audience="elderly"
         />
       </View>
-    </View>
+    </KeyboardAwareScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: "space-between",
   },
   fields: {

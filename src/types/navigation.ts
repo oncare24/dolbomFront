@@ -11,7 +11,8 @@ export type RootStackParamList = {
 
   // 보호자
   GuardianHome: undefined;
-  SafetyZoneList: { protegeId: number }; // ★ 추가
+  SafetyZoneList: { protegeId: number };
+  SafetyZoneEdit: { protegeId: number; zoneId?: number }; // ★ 추가 (zoneId 없으면 신규 등록)
 };
 
 declare global {

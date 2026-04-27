@@ -4,7 +4,12 @@
 
 import React, { useRef, useState } from "react";
 import { ScrollView, StatusBar, StyleSheet, View } from "react-native";
-import { useRoute, type RouteProp } from "@react-navigation/native";
+import {
+  useNavigation,
+  useRoute,
+  type RouteProp,
+} from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppHeader } from "../../components/common/Header";
@@ -17,7 +22,6 @@ import {
 import { SafetyZoneStatusBanner } from "../../components/guardian/SafetyZoneStatusBanner";
 import { SafetyZoneListItem } from "../../components/guardian/SafetyZoneListItem";
 import { AddSafetyZoneCard } from "../../components/guardian/AddSafetyZoneCard";
-
 import { MOCK_PROTEGES } from "../../mocks/guardianHomeMock";
 import {
   MOCK_SAFETY_ZONES,
@@ -29,13 +33,14 @@ import type { RootStackParamList } from "../../types/navigation";
 import type { SafetyZone } from "../../types/safetyZone";
 
 type Route = RouteProp<RootStackParamList, "SafetyZoneList">;
+type Nav = NativeStackNavigationProp<RootStackParamList, "SafetyZoneList">;
 
 export default function SafetyZoneListScreen() {
   const route = useRoute<Route>();
+  const navigation = useNavigation<Nav>(); // ★ 추가
   const insets = useSafeAreaInsets();
   const toast = useToast();
   const mapRef = useRef<SafetyZoneMapHandle>(null);
-
   const protegeId = route.params?.protegeId ?? 1;
   const protege =
     MOCK_PROTEGES.find((p) => p.id === protegeId) ?? MOCK_PROTEGES[0];
@@ -50,9 +55,9 @@ export default function SafetyZoneListScreen() {
 
   const handleZonePress = (zone: SafetyZone) => {
     mapRef.current?.focusZone(zone);
-    toast.show({
-      message: `${zone.name} 수정 화면 (구현 예정)`,
-      variant: "info",
+    navigation.navigate("SafetyZoneEdit", {
+      protegeId: protege.id,
+      zoneId: zone.id,
     });
   };
 
@@ -70,10 +75,7 @@ export default function SafetyZoneListScreen() {
   };
 
   const handleAddPress = () => {
-    toast.show({
-      message: "안전구역 추가 화면 (구현 예정)",
-      variant: "info",
-    });
+    navigation.navigate("SafetyZoneEdit", { protegeId: protege.id });
   };
 
   return (
