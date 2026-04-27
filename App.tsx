@@ -6,6 +6,7 @@ import { View, ActivityIndicator } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { KeyboardProvider } from "react-native-keyboard-controller"; // ★
 
 import { useAuthStore } from "./src/stores/authStore";
 import { Colors } from "./src/theme/colors";
@@ -16,8 +17,9 @@ import type { RootStackParamList } from "./src/types/navigation";
 import LoginScreen from "./src/screens/auth/LoginScreen";
 import SignupScreen from "./src/screens/auth/SignupScreen";
 import ElderlyHomeScreen from "./src/components/elderly/ElderlyHomeScreen";
-import MedicalChatScreen from "./src/screens/elderly/MedicalChatScreen"; // ★
-import GuardianHomePlaceholder from "./src/screens/guardian/GuardianHomePlaceholder";
+import MedicalChatScreen from "./src/screens/elderly/MedicalChatScreen";
+import GuardianHomeScreen from "./src/components/guardian/GuardianHomeScreen";
+import SafetyZoneListScreen from "./src/components/guardian/SafetyZoneListScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -52,17 +54,16 @@ function AppContent() {
         ) : role === "elderly" ? (
           <>
             <Stack.Screen name="ElderlyHome" component={ElderlyHomeScreen} />
-            <Stack.Screen
-              name="MedicalChat"
-              component={MedicalChatScreen}
-            />{" "}
-            {/* ★ */}
+            <Stack.Screen name="MedicalChat" component={MedicalChatScreen} />
           </>
         ) : (
-          <Stack.Screen
-            name="GuardianHome"
-            component={GuardianHomePlaceholder}
-          />
+          <>
+            <Stack.Screen name="GuardianHome" component={GuardianHomeScreen} />
+            <Stack.Screen
+              name="SafetyZoneList"
+              component={SafetyZoneListScreen}
+            />
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>
@@ -72,9 +73,11 @@ function AppContent() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <ToastProvider>
-        <AppContent />
-      </ToastProvider>
+      <KeyboardProvider>
+        <ToastProvider>
+          <AppContent />
+        </ToastProvider>
+      </KeyboardProvider>
     </SafeAreaProvider>
   );
 }

@@ -17,7 +17,6 @@
     },
     "android": {
       "package": "com.haeram.dolbom",
-      "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",

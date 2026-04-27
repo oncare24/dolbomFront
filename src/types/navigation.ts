@@ -7,10 +7,11 @@ export type RootStackParamList = {
 
   // 피보호자
   ElderlyHome: undefined;
-  MedicalChat: undefined; // ★ 병원 찾기 LLM 문진 채팅
+  MedicalChat: undefined;
 
   // 보호자
   GuardianHome: undefined;
+  SafetyZoneList: { protegeId: number }; // ★ 추가
 };
 
 declare global {

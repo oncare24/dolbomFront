@@ -1,10 +1,6 @@
 // 채팅 하단 입력 영역.
-// 좌측: 마이크 버튼 (라벨 "말하기" — 시니어가 음성임을 한눈에 인식)
-// 중앙: 텍스트 입력칸
-// 우측: 전송 버튼
-//
-// 녹음 중: 마이크 빨간색 + 펄싱 + 라벨 "듣는 중..." + 입력칸 disable + 인식 텍스트 실시간 표시
-// final 결과 → 입력칸에 채움 → 사용자가 검토 후 전송 누름 (자동 전송 안 함, 시니어 안전 우선)
+// 메신저 앱 표준 구조: 둥근 입력창 한 덩어리 + 내부에 마이크/전송 아이콘 박힘.
+// KeyboardStickyView로 키보드와 자연스럽게 함께 움직임 (카카오톡/왓츠앱 패턴).
 
 import React, { useEffect } from "react";
 import { Alert, Pressable, StyleSheet, TextInput, View } from "react-native";
@@ -18,28 +14,26 @@ import Animated, {
   withSpring,
   Easing,
 } from "react-native-reanimated";
-import { AppText } from "../common/Text";
-import { Colors, Spacing, Radius, Touch, Typography } from "../../theme";
+import { KeyboardStickyView } from "react-native-keyboard-controller";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { Colors, Spacing, Radius, Typography } from "../../theme";
 import { haptic } from "../../utils/haptics";
 import { sttService, useSttRecognition } from "../../services/sttService";
-
-const AnimatedView = Animated.createAnimatedComponent(View);
 
 interface Props {
   text: string;
   onChangeText: (text: string) => void;
   onSend: () => void;
-  disabled?: boolean; // 봇 응답 대기 중 등
+  disabled?: boolean;
 }
 
 export function ChatInputBar({ text, onChangeText, onSend, disabled }: Props) {
   const pulse = useSharedValue(1);
+  const insets = useSafeAreaInsets();
 
-  // STT 결과 → 입력칸에 실시간 반영 (interim 포함, 사용자가 검토 후 전송)
   const { isListening } = useSttRecognition({
-    onResult: (recognized, _isFinal) => {
-      onChangeText(recognized);
-    },
+    onResult: (recognized) => onChangeText(recognized),
     onError: (code, msg) => {
       console.warn("[STT] error:", code, msg);
       if (code === "not-allowed" || code === "permission-denied") {
@@ -51,12 +45,11 @@ export function ChatInputBar({ text, onChangeText, onSend, disabled }: Props) {
     },
   });
 
-  // 녹음 중 마이크 버튼 펄싱
   useEffect(() => {
     if (isListening) {
       pulse.value = withRepeat(
         withSequence(
-          withTiming(1.1, { duration: 500, easing: Easing.out(Easing.quad) }),
+          withTiming(1.15, { duration: 500, easing: Easing.out(Easing.quad) }),
           withTiming(1, { duration: 500, easing: Easing.in(Easing.quad) }),
         ),
         -1,
@@ -76,7 +69,6 @@ export function ChatInputBar({ text, onChangeText, onSend, disabled }: Props) {
       sttService.stop();
       return;
     }
-
     const granted = await sttService.requestPermission();
     if (!granted) {
       Alert.alert(
@@ -95,156 +87,147 @@ export function ChatInputBar({ text, onChangeText, onSend, disabled }: Props) {
   };
 
   const canSend = text.trim().length > 0 && !disabled && !isListening;
+  const showSendButton = text.trim().length > 0; // 왓츠앱 패턴: 텍스트 있을 때만 전송 버튼
 
+  const stickyOffset = { closed: 0, opened: insets.bottom };
   return (
-    <View style={styles.container}>
-      {/* ── 마이크 버튼 + 라벨 ── */}
-      <View style={styles.micWrap}>
-        <AnimatedView style={animatedMicStyle}>
-          <Pressable
-            onPress={handleMicPress}
-            disabled={disabled}
-            android_ripple={{
-              color: Colors.brand.primaryDark,
-              borderless: true,
-              radius: 32,
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={
-              isListening ? "음성 인식 중지" : "음성으로 말하기"
-            }
-            accessibilityHint="누르고 말씀하시면 글로 옮겨드려요"
-            style={[
-              styles.micButton,
-              isListening && styles.micButtonListening,
-              disabled && styles.micButtonDisabled,
-            ]}
-          >
-            <Ionicons
-              name={isListening ? "stop" : "mic"}
-              size={28}
-              color={Colors.text.inverse}
-            />
-          </Pressable>
-        </AnimatedView>
-        <AppText
-          variant="caption"
-          color={isListening ? "danger" : "secondary"}
-          style={styles.micLabel}
-          numberOfLines={1}
-          maxScale={1.2}
-        >
-          {isListening ? "듣는 중..." : "말하기"}
-        </AppText>
-      </View>
-
-      {/* ── 입력칸 ── */}
+    <KeyboardStickyView offset={stickyOffset} style={styles.stickyWrap}>
       <View
-        style={[styles.inputWrap, isListening && styles.inputWrapListening]}
+        style={[
+          styles.container,
+          { paddingBottom: Spacing.sm + insets.bottom },
+        ]}
       >
-        <TextInput
-          value={text}
-          onChangeText={onChangeText}
-          placeholder={isListening ? "듣고 있어요..." : "말씀하거나 입력하세요"}
-          placeholderTextColor={Colors.text.disabled}
-          editable={!disabled && !isListening}
-          multiline
-          maxLength={500}
-          style={styles.input}
-          allowFontScaling
-          maxFontSizeMultiplier={1.4}
-          underlineColorAndroid="transparent"
-          selectionColor={Colors.brand.primary}
-        />
-      </View>
+        <View
+          style={[styles.inputWrap, isListening && styles.inputWrapListening]}
+        >
+          <Animated.View style={animatedMicStyle}>
+            <Pressable
+              onPress={handleMicPress}
+              disabled={disabled}
+              hitSlop={12}
+              android_ripple={{
+                color: Colors.brand.primaryLight,
+                borderless: true,
+                radius: 24,
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={
+                isListening ? "음성 인식 중지" : "음성으로 말하기"
+              }
+              accessibilityHint="누르고 말씀하시면 글로 옮겨드려요"
+              style={styles.micIconButton}
+            >
+              <Ionicons
+                name={isListening ? "stop-circle" : "mic"}
+                size={28}
+                color={
+                  isListening ? Colors.semantic.danger : Colors.brand.primary
+                }
+              />
+            </Pressable>
+          </Animated.View>
 
-      {/* ── 전송 버튼 ── */}
-      <Pressable
-        onPress={handleSendPress}
-        disabled={!canSend}
-        android_ripple={{
-          color: Colors.brand.primaryDark,
-          borderless: true,
-          radius: 28,
-        }}
-        accessibilityRole="button"
-        accessibilityLabel="메시지 보내기"
-        style={[styles.sendButton, !canSend && styles.sendButtonDisabled]}
-      >
-        <Ionicons name="arrow-up" size={26} color={Colors.text.inverse} />
-      </Pressable>
-    </View>
+          <TextInput
+            value={text}
+            onChangeText={onChangeText}
+            placeholder={
+              isListening ? "듣고 있어요..." : "말씀하거나 글로 입력하세요"
+            }
+            placeholderTextColor={Colors.text.disabled}
+            editable={!disabled && !isListening}
+            multiline
+            maxLength={500}
+            style={styles.input}
+            allowFontScaling
+            maxFontSizeMultiplier={1.4}
+            underlineColorAndroid="transparent"
+            selectionColor={Colors.brand.primary}
+          />
+
+          {showSendButton && (
+            <Pressable
+              onPress={handleSendPress}
+              disabled={!canSend}
+              hitSlop={12}
+              android_ripple={{
+                color: Colors.brand.primaryDark,
+                borderless: true,
+                radius: 24,
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="메시지 보내기"
+              style={[
+                styles.sendIconButton,
+                !canSend && styles.sendIconButtonDisabled,
+              ]}
+            >
+              <Ionicons name="arrow-up" size={22} color={Colors.text.inverse} />
+            </Pressable>
+          )}
+        </View>
+      </View>
+    </KeyboardStickyView>
   );
 }
 
 const styles = StyleSheet.create({
+  stickyWrap: {
+    backgroundColor: Colors.surface.background,
+  },
   container: {
-    flexDirection: "row",
-    alignItems: "flex-end",
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingTop: Spacing.sm,
     backgroundColor: Colors.surface.background,
     borderTopWidth: 1,
     borderTopColor: Colors.surface.divider,
-    gap: Spacing.xs,
   },
-  // ── 마이크 ──
-  micWrap: {
-    alignItems: "center",
-    paddingBottom: 4,
-  },
-  micButton: {
-    width: 56,
-    height: 56,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.brand.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  micButtonListening: {
-    backgroundColor: Colors.semantic.danger,
-  },
-  micButtonDisabled: {
-    opacity: 0.4,
-  },
-  micLabel: {
-    marginTop: 2,
-    fontWeight: "600",
-  },
-  // ── 입력칸 ──
+  // ── 입력창 한 덩어리 ──
   inputWrap: {
-    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
     minHeight: 56,
-    maxHeight: 120,
-    borderRadius: Radius.lg,
+    maxHeight: 140,
+    borderRadius: Radius.full, // 시니어 친근한 둥근 형태
     borderWidth: 1.5,
     borderColor: Colors.surface.divider,
     backgroundColor: Colors.surface.card,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    justifyContent: "center",
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 4,
+    gap: Spacing.xs,
   },
   inputWrapListening: {
     borderColor: Colors.semantic.danger,
     borderWidth: 2,
   },
+  // ── 좌측 마이크 ──
+  micIconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.full,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  // ── 텍스트 입력 ──
   input: {
+    flex: 1,
     ...Typography.elderly.body,
     color: Colors.text.primary,
     padding: 0,
+    paddingTop: 8, // multiline 때 텍스트 위쪽 여백
+    paddingBottom: 8,
     textAlignVertical: "center",
   },
-  // ── 전송 ──
-  sendButton: {
-    width: Touch.comfortable,
-    height: Touch.comfortable,
+  // ── 우측 전송 ──
+  sendIconButton: {
+    width: 44,
+    height: 44,
     borderRadius: Radius.full,
     backgroundColor: Colors.brand.primary,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 0,
   },
-  sendButtonDisabled: {
-    opacity: 0.35,
+  sendIconButtonDisabled: {
+    opacity: 0.4,
   },
 });
