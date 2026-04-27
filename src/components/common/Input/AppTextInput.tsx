@@ -11,7 +11,6 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
   withSequence,
-  withRepeat,
   interpolateColor,
   Easing,
 } from "react-native-reanimated";
@@ -26,6 +25,7 @@ interface AppTextInputProps {
   label?: string;
   value: string;
   onChangeText: (text: string) => void;
+  onBlur?: () => void; // ★ react-hook-form Controller 호환용
   placeholder?: string;
   error?: string;
   helperText?: string;
@@ -35,6 +35,8 @@ interface AppTextInputProps {
   audience?: Audience;
   autoCapitalize?: TextInputProps["autoCapitalize"];
   editable?: boolean;
+  autoFocus?: boolean; // ★ 진입 시 자동 포커스
+  rightSlot?: React.ReactNode; // ★ 우측 영역 (비밀번호 토글 등)
 }
 
 /**
@@ -48,6 +50,7 @@ export const AppTextInput: React.FC<AppTextInputProps> = ({
   label,
   value,
   onChangeText,
+  onBlur, // ★
   placeholder,
   error,
   helperText,
@@ -57,10 +60,10 @@ export const AppTextInput: React.FC<AppTextInputProps> = ({
   audience = "elderly",
   autoCapitalize = "none",
   editable = true,
+  autoFocus = false, // ★
+  rightSlot, // ★
 }) => {
-  // 0 = 평소, 1 = 포커스
   const focusProgress = useSharedValue(0);
-  // 에러 흔들림 offset
   const shakeX = useSharedValue(0);
 
   const handleFocus = () => {
@@ -75,9 +78,9 @@ export const AppTextInput: React.FC<AppTextInputProps> = ({
       duration: 200,
       easing: Easing.bezier(0.4, 0.0, 0.2, 1),
     });
+    onBlur?.();
   };
 
-  // 에러가 새로 들어오면 흔들림 트리거
   useEffect(() => {
     if (error) {
       shakeX.value = withSequence(
@@ -133,6 +136,7 @@ export const AppTextInput: React.FC<AppTextInputProps> = ({
           maxLength={maxLength}
           autoCapitalize={autoCapitalize}
           editable={editable}
+          autoFocus={autoFocus}
           onFocus={handleFocus}
           onBlur={handleBlur}
           style={[
@@ -148,6 +152,7 @@ export const AppTextInput: React.FC<AppTextInputProps> = ({
           underlineColorAndroid="transparent"
           selectionColor={Colors.brand.primary}
         />
+        {rightSlot && <View style={styles.rightSlot}>{rightSlot}</View>}
       </Animated.View>
 
       {(error || helperText) && (
@@ -176,11 +181,16 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     backgroundColor: Colors.surface.background,
     paddingHorizontal: Spacing.md,
-    justifyContent: "center",
+    flexDirection: "row", // ★ rightSlot 가로 배치
+    alignItems: "center", // ★
   },
   input: {
     flex: 1,
     paddingVertical: 0,
+  },
+  rightSlot: {
+    // ★
+    marginLeft: Spacing.sm,
   },
   helper: {
     marginTop: Spacing.xs,

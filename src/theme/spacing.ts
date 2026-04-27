@@ -12,11 +12,12 @@ export const Spacing = {
 } as const;
 
 export const Radius = {
-  sm: 8, // 입력 필드, 작은 칩
-  md: 12, // 카드 기본
-  lg: 16, // 큰 카드, 모달
-  xl: 24, // 바텀시트
-  full: 9999, // 원형 버튼, 아바타
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20, // 큰 카드 (시니어 액션 카드용 — 친근함)
+  xxl: 28, // 바텀시트, 풀스크린 모달
+  full: 9999,
 } as const;
 
 // 화면별 권장 패딩

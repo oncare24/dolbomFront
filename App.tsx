@@ -1,137 +1,80 @@
-// 보살핌 - 컴포넌트 검증용 임시 화면
-// 발표 후 실제 화면 (로그인/메인/길안내 등) 연결 시점에 이 파일 통째로 교체 예정.
+// 보살핌 - 메인 진입점
+// 인증 상태 기반 라우팅 분기
 
-import React, { useState } from "react";
-import { View, StyleSheet, SafeAreaView, ScrollView } from "react-native";
+import React from "react";
+import { View, ActivityIndicator } from "react-native";
+import { NavigationContainer } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 
-import {
-  PrimaryButton,
-  SecondaryButton,
-  DangerButton,
-} from "./src/components/common/Button";
-import { AppText } from "./src/components/common/Text";
-import { AppTextInput } from "./src/components/common/Input";
-
+import { useAuthStore } from "./src/stores/authStore";
 import { Colors } from "./src/theme/colors";
-import { Spacing } from "./src/theme/spacing";
+import { ToastProvider } from "./src/components/common/Toast";
 
-export default function App() {
-  // 입력창 테스트용 state (검증 후 삭제)
-  const [testName, setTestName] = useState("");
-  const [testPhone, setTestPhone] = useState("");
-  const [testPassword, setTestPassword] = useState("");
-  const [testWithError, setTestWithError] = useState("");
-  const [errorMsg, setErrorMsg] = useState("");
+import type { RootStackParamList } from "./src/types/navigation";
+
+import LoginScreen from "./src/screens/auth/LoginScreen";
+import SignupScreen from "./src/screens/auth/SignupScreen";
+import ElderlyHomeScreen from "./src/components/elderly/ElderlyHomeScreen";
+import MedicalChatScreen from "./src/screens/elderly/MedicalChatScreen"; // ★
+import GuardianHomePlaceholder from "./src/screens/guardian/GuardianHomePlaceholder";
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
+
+function AppContent() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isHydrated = useAuthStore((s) => s.isHydrated);
+  const role = useAuthStore((s) => s.user?.role);
+
+  if (!isHydrated) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: Colors.surface.background,
+        }}
+      >
+        <ActivityIndicator size="large" color={Colors.brand.primary} />
+      </View>
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* ─── 페이지 타이틀 ─── */}
-        <View style={styles.header}>
-          <AppText variant="h1" color="primary">
-            컴포넌트 검증
-          </AppText>
-          <AppText variant="caption" color="secondary" style={{ marginTop: 4 }}>
-            발표 후 실제 화면으로 교체 예정
-          </AppText>
-        </View>
-
-        {/* ─── 버튼 테스트 ─── */}
-        <View style={styles.section}>
-          <AppText variant="h2" color="primary" style={styles.sectionTitle}>
-            버튼
-          </AppText>
-
-          <View style={{ gap: Spacing.sm }}>
-            <PrimaryButton
-              label="병원 추천받기"
-              onPress={() => alert("primary 눌림")}
-            />
-            <SecondaryButton
-              label="취소"
-              onPress={() => alert("secondary 눌림")}
-            />
-            <DangerButton
-              label="긴급 호출"
-              onPress={() => alert("danger 눌림")}
-            />
-          </View>
-        </View>
-
-        {/* ─── 입력창 테스트 ─── */}
-        <View style={styles.section}>
-          <AppText variant="h2" color="primary" style={styles.sectionTitle}>
-            입력창
-          </AppText>
-
-          <View style={{ gap: Spacing.md }}>
-            <AppTextInput
-              label="이름"
-              value={testName}
-              onChangeText={setTestName}
-              placeholder="홍길동"
-              helperText="실명을 입력해주세요"
-            />
-
-            <AppTextInput
-              label="전화번호"
-              value={testPhone}
-              onChangeText={setTestPhone}
-              placeholder="010-0000-0000"
-              keyboardType="phone-pad"
-              maxLength={13}
-            />
-
-            <AppTextInput
-              label="비밀번호"
-              value={testPassword}
-              onChangeText={setTestPassword}
-              placeholder="6자 이상"
-              secureTextEntry
-            />
-
-            <AppTextInput
-              label="에러 테스트"
-              value={testWithError}
-              onChangeText={setTestWithError}
-              placeholder="아무거나 입력 후 아래 버튼"
-              error={errorMsg}
-            />
-
-            <PrimaryButton
-              label={errorMsg ? "에러 해제" : "에러 트리거 (흔들림 확인)"}
-              onPress={() => {
-                setErrorMsg(errorMsg ? "" : "잘못된 형식입니다");
-              }}
-            />
-          </View>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+    <NavigationContainer>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        {!isAuthenticated ? (
+          <>
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Signup" component={SignupScreen} />
+          </>
+        ) : role === "elderly" ? (
+          <>
+            <Stack.Screen name="ElderlyHome" component={ElderlyHomeScreen} />
+            <Stack.Screen
+              name="MedicalChat"
+              component={MedicalChatScreen}
+            />{" "}
+            {/* ★ */}
+          </>
+        ) : (
+          <Stack.Screen
+            name="GuardianHome"
+            component={GuardianHomePlaceholder}
+          />
+        )}
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.surface.background, // 흰색 (시니어 화면 표준)
-  },
-  scrollContent: {
-    paddingHorizontal: Spacing.md, // 16dp
-    paddingTop: Spacing.lg, // 24dp
-    paddingBottom: Spacing.xxxl, // 64dp (하단 여유)
-  },
-  header: {
-    marginBottom: Spacing.xl, // 32dp
-  },
-  section: {
-    marginBottom: Spacing.xl, // 32dp
-  },
-  sectionTitle: {
-    marginBottom: Spacing.md, // 16dp
-  },
-});
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
+    </SafeAreaProvider>
+  );
+}

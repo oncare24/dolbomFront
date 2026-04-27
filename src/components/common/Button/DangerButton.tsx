@@ -19,12 +19,15 @@ import { haptic } from "../../../utils/haptics";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
+type ButtonAudience = "elderly" | "guardian";
+
 interface DangerButtonProps {
   label: string;
   onPress: () => void;
   loading?: boolean;
   disabled?: boolean;
-  size?: "elderly" | "guardian";
+  size?: ButtonAudience;
+  audience?: ButtonAudience;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -33,9 +36,12 @@ export function DangerButton({
   onPress,
   loading = false,
   disabled = false,
-  size = "elderly",
+  size,
+  audience,
   style,
 }: DangerButtonProps) {
+  const variant = audience ?? size ?? "elderly";
+
   const isInactive = loading || disabled;
   const scale = useSharedValue(1);
 
@@ -69,7 +75,7 @@ export function DangerButton({
       android_ripple={{ color: "#8E1212", borderless: false }}
       style={[
         styles.base,
-        size === "elderly" ? styles.sizeElderly : styles.sizeGuardian,
+        variant === "elderly" ? styles.sizeElderly : styles.sizeGuardian,
         isInactive && styles.inactive,
         animatedStyle,
         style,

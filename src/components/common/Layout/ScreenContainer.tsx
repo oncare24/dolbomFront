@@ -10,6 +10,8 @@ interface ScreenContainerProps {
   backgroundColor?: string;
   style?: StyleProp<ViewStyle>;
   noPadding?: boolean;
+  /** 상단 패딩 override. ScreenPadding[audience].vertical 대신 이 값 사용. */
+  paddingTop?: number; // ★ 추가
 }
 
 export function ScreenContainer({
@@ -19,9 +21,11 @@ export function ScreenContainer({
   backgroundColor = Colors.surface.background,
   style,
   noPadding = false,
+  paddingTop, // ★ 추가
 }: ScreenContainerProps) {
   const insets = useSafeAreaInsets();
   const padding = ScreenPadding[audience];
+  const verticalTop = paddingTop ?? padding.vertical; // ★
 
   const containerStyle: ViewStyle = {
     flex: 1,
@@ -35,7 +39,8 @@ export function ScreenContainer({
     : {
         flex: 1,
         paddingHorizontal: padding.horizontal,
-        paddingVertical: padding.vertical,
+        paddingTop: verticalTop, // ★
+        paddingBottom: padding.vertical,
       };
 
   if (scrollable) {
@@ -47,7 +52,8 @@ export function ScreenContainer({
               ? undefined
               : {
                   paddingHorizontal: padding.horizontal,
-                  paddingVertical: padding.vertical,
+                  paddingTop: verticalTop, // ★
+                  paddingBottom: padding.vertical,
                 }
           }
           showsVerticalScrollIndicator={false}

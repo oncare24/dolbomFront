@@ -19,12 +19,15 @@ import { haptic } from "../../../utils/haptics";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
+type ButtonAudience = "elderly" | "guardian";
+
 interface PrimaryButtonProps {
   label: string;
   onPress: () => void;
   loading?: boolean;
   disabled?: boolean;
-  size?: "elderly" | "guardian";
+  size?: ButtonAudience;
+  audience?: ButtonAudience;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -33,9 +36,11 @@ export function PrimaryButton({
   onPress,
   loading = false,
   disabled = false,
-  size = "elderly",
+  size,
+  audience,
   style,
 }: PrimaryButtonProps) {
+  const variant = audience ?? size ?? "elderly";
   const isInactive = loading || disabled;
   const scale = useSharedValue(1);
 
@@ -69,7 +74,7 @@ export function PrimaryButton({
       android_ripple={{ color: Colors.brand.primaryDark, borderless: false }}
       style={[
         styles.base,
-        size === "elderly" ? styles.sizeElderly : styles.sizeGuardian,
+        variant === "elderly" ? styles.sizeElderly : styles.sizeGuardian,
         isInactive && styles.inactive,
         animatedStyle,
         style,

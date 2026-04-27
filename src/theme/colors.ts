@@ -25,10 +25,10 @@ export const Colors = {
 
   // ─── Surface (배경/카드) ───
   surface: {
-    background: "#FFFFFF",
-    card: "#FFFFFF",
-    cardElevated: "#FAFAFA",
-    divider: "#E0E0E0",
+    background: "#F5F6F8", // 화면 배경 (살짝 회색 — 카드와 대비)
+    card: "#FFFFFF", // 카드는 순백 (대비 명확)
+    cardElevated: "#FFFFFF",
+    divider: "#E5E7EB",
     overlay: "rgba(0,0,0,0.5)",
   },
 
