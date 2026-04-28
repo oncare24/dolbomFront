@@ -1,19 +1,22 @@
 // 피보호자 홈 화면.
-// 인사말 → SOS+병원+약 카드 → 복약 상태 → 안전구역 상태.
-// 병원 찾기 카드 누르면 LLM 문진 채팅으로 이동.
+// 인사말 → [받은 초대 배너] → SOS+병원+약 카드 → 복약 상태 → 안전구역 상태.
+// 9-E: ReceivedInvitationsBanner 통합 + ReceivedInvitations 라우트로 이동.
+// Pull-to-refresh: 받은 초대 갱신 (복약/안전구역은 Step 11+에서 실연동).
 
-import React from "react";
 import { StatusBar, StyleSheet, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-
+import React, { useCallback, useState } from "react";
 import { useToast } from "../../components/common/Toast";
 import { ScreenContainer } from "../../components/common/Layout";
 import { HomeGreeting } from "../../components/elderly/HomeGreeting";
 import { HomeActionGrid } from "../../components/elderly/HomeActionGrid";
 import { MedicationStatusCard } from "../../components/elderly/MedicationStatusCard";
 import { SafeZoneStatusCard } from "../../components/elderly/SafeZoneStatusCard";
+import { ReceivedInvitationsBanner } from "../../components/elderly/ReceivedInvitationsBanner";
 import { useAuthStore } from "../../stores/authStore";
+import { useBackgroundLocation } from "../../hooks/useBackgroundLocation";
+import { useReceivedInvitations } from "../../hooks/useInvitations";
 import {
   MOCK_MEDICATION_STATUS,
   MOCK_SAFEZONE_STATUS,
@@ -27,11 +30,28 @@ type Nav = NativeStackNavigationProp<RootStackParamList, "ElderlyHome">;
 export default function ElderlyHomeScreen() {
   const navigation = useNavigation<Nav>();
   const userName = useAuthStore((s) => s.user?.name) ?? "어르신";
+  const userRole = useAuthStore((s) => s.user?.role);
   const toast = useToast();
+
+  useBackgroundLocation(userRole === "elderly");
+
+  // 받은 초대 — PENDING이 1건 이상이면 배너 노출
+  const invitationsQuery = useReceivedInvitations();
+  const invitations = invitationsQuery.data ?? [];
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await invitationsQuery.refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [invitationsQuery]);
 
   const handleAction = (action: ElderlyHomeAction) => {
     if (action === "hospital") {
-      navigation.navigate("MedicalChat"); // ★ LLM 문진 채팅으로
+      navigation.navigate("MedicalChat");
       return;
     }
 
@@ -55,6 +75,10 @@ export default function ElderlyHomeScreen() {
 
   const handleMedicationDetail = () => handleAction("medication");
 
+  const handleInvitationsPress = () => {
+    navigation.navigate("ReceivedInvitations");
+  };
+
   return (
     <>
       <StatusBar
@@ -64,11 +88,22 @@ export default function ElderlyHomeScreen() {
       <ScreenContainer
         audience="elderly"
         scrollable
-        paddingTop={Spacing.md} /* ★ 32dp → 16dp */
+        paddingTop={Spacing.md}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
       >
         <View style={styles.headerSection}>
           <HomeGreeting userName={userName} onSettingsPress={handleSettings} />
         </View>
+
+        {invitations.length > 0 && (
+          <View style={styles.section}>
+            <ReceivedInvitationsBanner
+              count={invitations.length}
+              onPress={handleInvitationsPress}
+            />
+          </View>
+        )}
 
         <View style={styles.section}>
           <HomeActionGrid onActionPress={handleAction} />
@@ -91,7 +126,7 @@ export default function ElderlyHomeScreen() {
 
 const styles = StyleSheet.create({
   headerSection: {
-    paddingTop: 0 /* ★ Spacing.xs → 0 */,
+    paddingTop: 0,
     paddingBottom: Spacing.lg,
   },
   section: {

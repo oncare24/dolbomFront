@@ -32,7 +32,12 @@ import {
 import { RadiusSlider } from "../../components/guardian/RadiusSlider";
 import { ZoneTypePicker } from "../../components/guardian/ZoneTypePicker";
 
-import { MOCK_SAFETY_ZONES } from "../../mocks/safetyZoneMock";
+import {
+  useSafetyZones,
+  useCreateSafetyZone,
+  useUpdateSafetyZone,
+  useDeleteSafetyZone,
+} from "../../hooks/useSafetyZones";
 import {
   SAFETY_ZONE_MIN_RADIUS,
   type SafetyZoneType,
@@ -55,11 +60,17 @@ export default function SafetyZoneEditScreen() {
   const { protegeId, zoneId } = route.params;
   const isEditMode = zoneId !== undefined;
 
+  // 수정 모드면 목록 캐시에서 해당 zone 찾기 (별도 단건 호출 X)
+  const { data: zones } = useSafetyZones(protegeId);
   const existingZone = useMemo(
-    () =>
-      isEditMode ? MOCK_SAFETY_ZONES.find((z) => z.id === zoneId) : undefined,
-    [isEditMode, zoneId],
+    () => (isEditMode ? zones?.find((z) => z.id === zoneId) : undefined),
+    [isEditMode, zoneId, zones],
   );
+
+  // Mutations
+  const createMutation = useCreateSafetyZone();
+  const updateMutation = useUpdateSafetyZone();
+  const deleteMutation = useDeleteSafetyZone();
 
   const [name, setName] = useState(existingZone?.name ?? "");
   const [address, setAddress] = useState(existingZone?.address ?? "");
@@ -76,7 +87,9 @@ export default function SafetyZoneEditScreen() {
 
   const [nameError, setNameError] = useState("");
   const [addressError, setAddressError] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
+
+  const isSaving = createMutation.isPending || updateMutation.isPending;
+  const isDeleting = deleteMutation.isPending;
 
   const handleCenterChanged = useCallback((lat: number, lng: number) => {
     setCenter({ latitude: lat, longitude: lng });
@@ -120,25 +133,62 @@ export default function SafetyZoneEditScreen() {
     return ok;
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!validate()) return;
-    setIsSaving(true);
-    try {
-      // TODO: 백엔드 연동 시 axios 호출
-      await new Promise((r) => setTimeout(r, 800));
-      toast.show({
-        message: isEditMode ? "안전구역을 수정했어요" : "안전구역을 등록했어요",
-        variant: "success",
-      });
-      navigation.goBack();
-    } catch (e) {
-      toast.show({ message: "저장에 실패했어요", variant: "error" });
-    } finally {
-      setIsSaving(false);
+
+    const payload = {
+      name: name.trim(),
+      type,
+      address: address.trim(),
+      latitude: center.latitude,
+      longitude: center.longitude,
+      radius,
+    };
+
+    if (isEditMode && zoneId !== undefined) {
+      updateMutation.mutate(
+        { id: zoneId, input: payload },
+        {
+          onSuccess: () => {
+            toast.show({
+              message: "안전구역을 수정했어요",
+              variant: "success",
+            });
+            navigation.goBack();
+          },
+          onError: (err: any) => {
+            toast.show({
+              message: err?.message ?? "저장에 실패했어요",
+              variant: "error",
+            });
+          },
+        },
+      );
+    } else {
+      createMutation.mutate(
+        { protegeId, ...payload },
+        {
+          onSuccess: () => {
+            toast.show({
+              message: "안전구역을 등록했어요",
+              variant: "success",
+            });
+            navigation.goBack();
+          },
+          onError: (err: any) => {
+            // S002 LIMIT 등 백엔드 에러 메시지 그대로 노출
+            toast.show({
+              message: err?.message ?? "등록에 실패했어요",
+              variant: "error",
+            });
+          },
+        },
+      );
     }
   };
 
   const handleDelete = () => {
+    if (!isEditMode || zoneId === undefined) return;
     Alert.alert(
       "안전구역 삭제",
       `'${existingZone?.name}'을(를) 삭제하시겠습니까?\n삭제하면 더 이상 이탈 알림을 받을 수 없어요.`,
@@ -147,11 +197,25 @@ export default function SafetyZoneEditScreen() {
         {
           text: "삭제",
           style: "destructive",
-          onPress: async () => {
-            // TODO: 백엔드 연동 시 axios DELETE
-            await new Promise((r) => setTimeout(r, 500));
-            toast.show({ message: "안전구역을 삭제했어요", variant: "info" });
-            navigation.goBack();
+          onPress: () => {
+            deleteMutation.mutate(
+              { id: zoneId, protegeId },
+              {
+                onSuccess: () => {
+                  toast.show({
+                    message: "안전구역을 삭제했어요",
+                    variant: "info",
+                  });
+                  navigation.goBack();
+                },
+                onError: (err: any) => {
+                  toast.show({
+                    message: err?.message ?? "삭제에 실패했어요",
+                    variant: "error",
+                  });
+                },
+              },
+            );
           },
         },
       ],
@@ -172,7 +236,7 @@ export default function SafetyZoneEditScreen() {
         />
       </View>
 
-      {/* ★ 지도: flexShrink: 0 — 키보드 떠도 줄어들지 않음 */}
+      {/* 지도: flexShrink: 0 — 키보드 떠도 줄어들지 않음 */}
       <View style={styles.mapSection}>
         <CenteredPinMap
           ref={mapRef}
@@ -201,7 +265,7 @@ export default function SafetyZoneEditScreen() {
         </View>
       </View>
 
-      {/* ★ 폼: KeyboardAwareScrollView가 자동 스크롤 처리 */}
+      {/* 폼 */}
       <KeyboardAwareScrollView
         style={styles.form}
         contentContainerStyle={[
@@ -268,6 +332,7 @@ export default function SafetyZoneEditScreen() {
             <DangerButton
               label="안전구역 삭제"
               onPress={handleDelete}
+              loading={isDeleting}
               audience="guardian"
               style={styles.deleteBtn}
             />
@@ -283,7 +348,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.surface.background,
   },
-  // ★ flexShrink: 0 — 키보드 뜰 때 지도 영역이 줄어들지 않도록 고정
+  // flexShrink: 0 — 키보드 뜰 때 지도 영역이 줄어들지 않도록 고정
   mapSection: {
     height: 280,
     flexShrink: 0,

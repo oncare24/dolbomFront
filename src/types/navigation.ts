@@ -8,11 +8,12 @@ export type RootStackParamList = {
   // 피보호자
   ElderlyHome: undefined;
   MedicalChat: undefined;
-
+  ReceivedInvitations: undefined;
   // 보호자
   GuardianHome: undefined;
   SafetyZoneList: { protegeId: number };
   SafetyZoneEdit: { protegeId: number; zoneId?: number }; // ★ 추가 (zoneId 없으면 신규 등록)
+  InviteWard: undefined;
 };
 
 declare global {

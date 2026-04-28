@@ -1,7 +1,11 @@
 // 상대 시간 포맷터.
 // 분 단위 → "방금 전" / "5분 전" / "1시간 전" / "어제" / "3일 전" / "2주 전"
+// null 입력은 "—" — 한 번도 보고 없는 어르신 표시용 (백엔드 lastReportedMinutesAgo nullable)
 
-export function formatRelativeMinutes(minutesAgo: number): string {
+export function formatRelativeMinutes(
+  minutesAgo: number | null | undefined,
+): string {
+  if (minutesAgo == null) return "—";
   if (minutesAgo < 1) return "방금 전";
   if (minutesAgo < 60) return `${Math.floor(minutesAgo)}분 전`;
 

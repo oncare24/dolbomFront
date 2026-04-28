@@ -8,14 +8,14 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-
+import InvitationListScreen from "./src/screens/elderly/InvitationListScreen";
 import { useAuthStore } from "./src/stores/authStore";
 import { Colors } from "./src/theme/colors";
 import { ToastProvider, useToast } from "./src/components/common/Toast";
 import { registerToast } from "./src/utils/toastBridge";
-
+import InviteWardScreen from "./src/screens/guardian/InviteWardScreen";
 import type { RootStackParamList } from "./src/types/navigation";
-
+import "./src/services/backgroundLocationTask";
 import LoginScreen from "./src/screens/auth/LoginScreen";
 import SignupScreen from "./src/screens/auth/SignupScreen";
 import ElderlyHomeScreen from "./src/components/elderly/ElderlyHomeScreen";
@@ -84,6 +84,10 @@ function AppContent() {
           <>
             <Stack.Screen name="ElderlyHome" component={ElderlyHomeScreen} />
             <Stack.Screen name="MedicalChat" component={MedicalChatScreen} />
+            <Stack.Screen
+              name="ReceivedInvitations"
+              component={InvitationListScreen}
+            />
           </>
         ) : (
           <>
@@ -96,6 +100,7 @@ function AppContent() {
               name="SafetyZoneEdit"
               component={SafetyZoneEditScreen}
             />
+            <Stack.Screen name="InviteWard" component={InviteWardScreen} />
           </>
         )}
       </Stack.Navigator>

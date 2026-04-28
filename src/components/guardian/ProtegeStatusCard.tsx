@@ -54,6 +54,14 @@ const STATUS_MAP: Record<ProtegeStatusType, StatusStyle> = {
     label: "연결 끊김",
     labelColor: Colors.gray[700],
   },
+  unknown: {
+    // ← 추가
+    barColor: Colors.gray[400],
+    iconName: "help-circle-outline",
+    iconColor: Colors.gray[600],
+    label: "확인 중",
+    labelColor: Colors.gray[700],
+  },
 };
 
 export function ProtegeStatusCard({ protege, onPress }: Props) {
@@ -88,7 +96,7 @@ export function ProtegeStatusCard({ protege, onPress }: Props) {
       onPressOut={handlePressOut}
       android_ripple={{ color: Colors.gray[200], borderless: false }}
       accessibilityRole="button"
-      accessibilityLabel={`${protege.name} ${protege.relationship}, ${status.label}, ${protege.locationLabel}, 마지막 보고 ${formatRelativeMinutes(protege.lastReportedMinutesAgo)}`}
+      accessibilityLabel={`${protege.name}${protege.relationship ? " " + protege.relationship : ""}, ${status.label}, ${protege.locationLabel}, 마지막 보고 ${formatRelativeMinutes(protege.lastReportedMinutesAgo)}`}
       style={[styles.card, animatedStyle]}
     >
       {/* 좌측 컬러 바 (상태 강조) */}
@@ -119,7 +127,7 @@ export function ProtegeStatusCard({ protege, onPress }: Props) {
             color="secondary"
             style={styles.relationship}
           >
-            {protege.relationship}
+            {protege.relationship || "(관계 미지정)"}
           </AppText>
         </View>
 

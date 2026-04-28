@@ -11,7 +11,7 @@ import type { ProtegeStatusType } from "../../types/guardianHome";
 interface Props {
   status: ProtegeStatusType;
   locationLabel: string;
-  lastReportedMinutesAgo: number;
+  lastReportedMinutesAgo: number | null; // ← number → number | null
 }
 
 interface BannerStyle {
@@ -39,6 +39,13 @@ const STATUS_MAP: Record<ProtegeStatusType, BannerStyle> = {
     iconName: "cloud-offline",
     iconColor: Colors.gray[600],
     title: "연결 끊김",
+  },
+  unknown: {
+    // ← 추가
+    bg: Colors.gray[100],
+    iconName: "help-circle-outline",
+    iconColor: Colors.gray[600],
+    title: "확인 중",
   },
 };
 

@@ -1,5 +1,11 @@
 import React from "react";
-import { View, ScrollView, ViewStyle, StyleProp } from "react-native";
+import {
+  RefreshControl,
+  ScrollView,
+  StyleProp,
+  View,
+  ViewStyle,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Colors, ScreenPadding } from "../../../theme";
 
@@ -11,7 +17,10 @@ interface ScreenContainerProps {
   style?: StyleProp<ViewStyle>;
   noPadding?: boolean;
   /** 상단 패딩 override. ScreenPadding[audience].vertical 대신 이 값 사용. */
-  paddingTop?: number; // ★ 추가
+  paddingTop?: number;
+  /** Pull-to-refresh 지원. scrollable=true 일 때만 동작. */
+  refreshing?: boolean;
+  onRefresh?: () => void;
 }
 
 export function ScreenContainer({
@@ -21,11 +30,13 @@ export function ScreenContainer({
   backgroundColor = Colors.surface.background,
   style,
   noPadding = false,
-  paddingTop, // ★ 추가
+  paddingTop,
+  refreshing,
+  onRefresh,
 }: ScreenContainerProps) {
   const insets = useSafeAreaInsets();
   const padding = ScreenPadding[audience];
-  const verticalTop = paddingTop ?? padding.vertical; // ★
+  const verticalTop = paddingTop ?? padding.vertical;
 
   const containerStyle: ViewStyle = {
     flex: 1,
@@ -39,7 +50,7 @@ export function ScreenContainer({
     : {
         flex: 1,
         paddingHorizontal: padding.horizontal,
-        paddingTop: verticalTop, // ★
+        paddingTop: verticalTop,
         paddingBottom: padding.vertical,
       };
 
@@ -52,12 +63,22 @@ export function ScreenContainer({
               ? undefined
               : {
                   paddingHorizontal: padding.horizontal,
-                  paddingTop: verticalTop, // ★
+                  paddingTop: verticalTop,
                   paddingBottom: padding.vertical,
                 }
           }
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          refreshControl={
+            onRefresh ? (
+              <RefreshControl
+                refreshing={refreshing ?? false}
+                onRefresh={onRefresh}
+                colors={[Colors.brand.primary]}
+                tintColor={Colors.brand.primary}
+              />
+            ) : undefined
+          }
         >
           {children}
         </ScrollView>
