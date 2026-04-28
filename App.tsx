@@ -23,6 +23,8 @@ import MedicalChatScreen from "./src/screens/elderly/MedicalChatScreen";
 import GuardianHomeScreen from "./src/components/guardian/GuardianHomeScreen";
 import SafetyZoneListScreen from "./src/components/guardian/SafetyZoneListScreen";
 import SafetyZoneEditScreen from "./src/components/guardian/SafetyZoneEditScreen";
+import HospitalRecommendResultScreen from "./src/screens/elderly/HospitalRecommendResultScreen";
+import HospitalNavigationScreen from "./src/screens/elderly/HospitalNavigationScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -87,6 +89,14 @@ function AppContent() {
             <Stack.Screen
               name="ReceivedInvitations"
               component={InvitationListScreen}
+            />
+            <Stack.Screen
+              name="HospitalRecommendResult"
+              component={HospitalRecommendResultScreen}
+            />
+            <Stack.Screen
+              name="HospitalNavigation"
+              component={HospitalNavigationScreen}
             />
           </>
         ) : (
