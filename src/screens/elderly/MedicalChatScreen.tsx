@@ -5,6 +5,9 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { FlatList, StatusBar, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import * as Location from "expo-location";
 
 import { AppHeader } from "../../components/common/Header";
 import { ChatBubble } from "../../components/elderly/ChatBubble";
@@ -23,14 +26,45 @@ import type {
   TextMessage,
   TypingMessage,
 } from "../../types/medicalChat";
+import type { RootStackParamList } from "../../types/navigation";
+
+type Nav = NativeStackNavigationProp<RootStackParamList, "MedicalChat">;
 
 function genMessageId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
+/**
+ * 사용자 현재 위치를 best-effort로 가져온다.
+ * 권한 거부/실패 시 undefined → 백엔드 폴백 체인이 동작 (안전구역 등).
+ */
+async function tryGetCurrentLocation(): Promise<
+  { latitude: number; longitude: number } | undefined
+> {
+  try {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") return undefined;
+    // const loc = await Location.getCurrentPositionAsync({
+    //   accuracy: Location.Accuracy.Balanced,
+    //   maximumAge: 30000, // 30초 캐시 OK
+    //   timeout: 5000,
+    // });
+    const loc = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Balanced,
+    });
+    return {
+      latitude: loc.coords.latitude,
+      longitude: loc.coords.longitude,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 export default function MedicalChatScreen() {
   const toast = useToast();
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<Nav>();
   const listRef = useRef<FlatList<ChatMessage>>(null);
 
   const sessionIdRef = useRef<string>(createSessionId());
@@ -84,15 +118,22 @@ export default function MedicalChatScreen() {
     setIsWaitingBot(true);
 
     try {
-      const history = [...messages, userMsg]
-        .filter((m): m is TextMessage => m.type === "text")
-        .map((m) => ({ role: m.role, text: m.text }));
+      // 마지막 턴 직전이면 위치를 미리 받아둠 (백엔드에 함께 전달)
+      const userMessageCount =
+        messages.filter((m) => m.role === "user").length + 1;
+      const isFinalTurn = userMessageCount >= 3;
+      const location = isFinalTurn ? await tryGetCurrentLocation() : undefined;
 
-      const res = await sendMessage({
-        sessionId: sessionIdRef.current,
-        message: trimmed,
-        history,
-      });
+      const res = await sendMessage(
+        {
+          sessionId: sessionIdRef.current,
+          message: trimmed,
+          history: messages
+            .filter((m): m is TextMessage => m.type === "text")
+            .map((m) => ({ role: m.role, text: m.text })),
+        },
+        location,
+      );
 
       const botMsg: TextMessage = {
         id: genMessageId(),
@@ -109,18 +150,32 @@ export default function MedicalChatScreen() {
 
       if (res.done) {
         setIsFinished(true);
+        // 결과 화면으로 이동 (잠깐 봇 메시지 보여준 후)
+        if (res.result) {
+          setTimeout(() => {
+            navigation.navigate("HospitalRecommendResult", {
+              result: res.result!,
+            });
+          }, 1200);
+        } else {
+          toast.show({
+            message: "결과를 받지 못했어요. 잠시 후 다시 시도해주세요.",
+            variant: "error",
+          });
+        }
       }
     } catch (e: any) {
       setMessages((prev) => prev.filter((m) => m.type !== "typing"));
       toast.show({
-        message: "응답을 받지 못했어요. 잠시 후 다시 시도해주세요.",
+        message:
+          e?.message ?? "응답을 받지 못했어요. 잠시 후 다시 시도해주세요.",
         variant: "error",
       });
       console.error("[MedicalChat] sendMessage failed:", e);
     } finally {
       setIsWaitingBot(false);
     }
-  }, [inputText, isWaitingBot, isFinished, messages, toast]);
+  }, [inputText, isWaitingBot, isFinished, messages, toast, navigation]);
 
   const renderItem = useCallback(({ item }: { item: ChatMessage }) => {
     if (item.type === "typing") return <TypingIndicator />;

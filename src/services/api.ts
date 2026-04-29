@@ -9,7 +9,7 @@ import { useAuthStore } from "../stores/authStore";
 import { toastBridge } from "../utils/toastBridge";
 
 // 안드로이드 실기기: PC IP 직접 입력 / 에뮬레이터: http://10.0.2.2:8080
-const BASE_URL = "http://192.168.45.219:8080";
+const BASE_URL = "http://192.168.0.6:8080";
 
 // ───────────────────────────────────────────────────────
 // 백엔드 ApiResponse 형태 (모두 type alias로 통일 → IDE 오인식 차단)
