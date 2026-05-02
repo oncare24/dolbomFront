@@ -8,9 +8,11 @@ import axios, {
 import { useAuthStore } from "../stores/authStore";
 import { toastBridge } from "../utils/toastBridge";
 
-// 안드로이드 실기기: PC IP 직접 입력 / 에뮬레이터: http://10.0.2.2:8080
-const BASE_URL = "http://192.168.45.219:8080";
-
+// .env의 EXPO_PUBLIC_API_BASE_URL 사용. 빌드 타임에 주입되며, 끝 슬래시는 자동 제거.
+// 안드로이드 에뮬레이터에서는 PC IP 대신 http://10.0.2.2:8080 사용.
+const RAW_BASE_URL =
+  process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://192.168.45.219:8080";
+const BASE_URL = RAW_BASE_URL.replace(/\/+$/, "");
 // ───────────────────────────────────────────────────────
 // 백엔드 ApiResponse 형태 (모두 type alias로 통일 → IDE 오인식 차단)
 // ───────────────────────────────────────────────────────

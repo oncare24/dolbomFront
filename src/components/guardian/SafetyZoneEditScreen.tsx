@@ -5,7 +5,7 @@
 //           카카오T/우버 표준 패턴.
 
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { Alert, StatusBar, StyleSheet, View } from "react-native";
+import { Alert, Keyboard, StatusBar, StyleSheet, View } from "react-native";
 import {
   useNavigation,
   useRoute,
@@ -42,9 +42,12 @@ import {
   SAFETY_ZONE_MIN_RADIUS,
   type SafetyZoneType,
 } from "../../types/safetyZone";
-import { Colors, Spacing } from "../../theme";
+import { Colors, Spacing, Radius } from "../../theme";
 import type { RootStackParamList } from "../../types/navigation";
-
+import { Pressable } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { AddressSearchModal } from "./AddressSearchModal";
+import type { KakaoPlace } from "../../services/kakaoSearchService";
 type Route = RouteProp<RootStackParamList, "SafetyZoneEdit">;
 type Nav = NativeStackNavigationProp<RootStackParamList, "SafetyZoneEdit">;
 
@@ -87,13 +90,30 @@ export default function SafetyZoneEditScreen() {
 
   const [nameError, setNameError] = useState("");
   const [addressError, setAddressError] = useState("");
-
+  // 카카오 검색 모달 표시 여부
+  const [searchModalVisible, setSearchModalVisible] = useState(false);
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const isDeleting = deleteMutation.isPending;
 
   const handleCenterChanged = useCallback((lat: number, lng: number) => {
     setCenter({ latitude: lat, longitude: lng });
   }, []);
+
+  // 카카오 검색 결과 선택 시: 주소·좌표 자동 채움 + 지도 자동 이동
+  const handlePlaceSelected = (place: KakaoPlace) => {
+    const displayAddress = place.roadAddressName ?? place.addressName;
+    setAddress(displayAddress);
+    setCenter({ latitude: place.latitude, longitude: place.longitude });
+    mapRef.current?.moveTo(place.latitude, place.longitude);
+    if (addressError) setAddressError("");
+    setSearchModalVisible(false);
+
+    // 이름 비어있으면 장소명을 기본값으로 채움 (시니어 친화 — 한 번 더 입력 안 해도 됨)
+    if (name.trim().length === 0) {
+      // 20자 제한 준수
+      setName(place.placeName.slice(0, 20));
+    }
+  };
 
   const handleUseCurrentLocation = async () => {
     try {
@@ -272,7 +292,7 @@ export default function SafetyZoneEditScreen() {
           styles.formContent,
           { paddingBottom: Spacing.xxl + insets.bottom },
         ]}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="always"
         showsVerticalScrollIndicator={false}
         bottomOffset={Spacing.lg}
       >
@@ -304,17 +324,63 @@ export default function SafetyZoneEditScreen() {
         </View>
 
         <View style={styles.field}>
-          <AppTextInput
-            label="주소"
-            placeholder="예: 경상남도 양산시 중앙로 39"
-            value={address}
-            onChangeText={(t) => {
-              setAddress(t);
-              if (addressError) setAddressError("");
-            }}
-            error={addressError}
+          <AppText
+            variant="bodyBold"
             audience="guardian"
-          />
+            color="primary"
+            style={styles.label}
+          >
+            주소
+          </AppText>
+          <Pressable
+            onPress={() => {
+              Keyboard.dismiss();
+              setSearchModalVisible(true);
+            }}
+            style={({ pressed }) => [
+              styles.addressTrigger,
+              pressed && { backgroundColor: Colors.gray[100] },
+              !!addressError && styles.addressTriggerError,
+            ]}
+            android_ripple={{ color: Colors.gray[200] }}
+            accessibilityRole="button"
+            accessibilityLabel={
+              address
+                ? `현재 주소: ${address}. 변경하려면 누르세요`
+                : "주소 검색"
+            }
+          >
+            <Ionicons
+              name="search"
+              size={20}
+              color={address ? Colors.brand.primary : Colors.text.secondary}
+              style={{ marginRight: Spacing.sm }}
+            />
+            <AppText
+              variant="body"
+              audience="guardian"
+              color={address ? "primary" : "disabled"}
+              numberOfLines={2}
+              style={{ flex: 1 }}
+            >
+              {address || "장소·주소·건물명 검색"}
+            </AppText>
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={Colors.gray[400]}
+            />
+          </Pressable>
+          {!!addressError && (
+            <AppText
+              variant="caption"
+              audience="guardian"
+              color="danger"
+              style={{ marginTop: Spacing.xs }}
+            >
+              {addressError}
+            </AppText>
+          )}
         </View>
 
         <View style={styles.field}>
@@ -339,6 +405,12 @@ export default function SafetyZoneEditScreen() {
           )}
         </View>
       </KeyboardAwareScrollView>
+      {/* 검색 모달 */}
+      <AddressSearchModal
+        visible={searchModalVisible}
+        onClose={() => setSearchModalVisible(false)}
+        onSelect={handlePlaceSelected}
+      />
     </View>
   );
 }
@@ -390,5 +462,19 @@ const styles = StyleSheet.create({
   },
   deleteBtn: {
     marginTop: Spacing.xs,
+  },
+  addressTrigger: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 56,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.surface.card,
+    borderWidth: 1.5,
+    borderColor: Colors.surface.divider,
+    borderRadius: Radius.md,
+  },
+  addressTriggerError: {
+    borderColor: Colors.semantic.danger,
   },
 });
