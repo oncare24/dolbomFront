@@ -1,14 +1,17 @@
-// 병원 찾기 LLM 문진 + 백엔드 호출.
+// 병원 찾기 LLM 멀티턴 문진 채팅.
 //
 // 흐름:
-//   - 1, 2번째 사용자 메시지: 봇이 다음 질문을 던지는 척 (프론트 시뮬레이션. 백엔드 호출 없음)
-//   - 3번째 사용자 메시지: 누적된 증상을 한 문장으로 합쳐서 POST /api/hospitals/recommend 호출
-//                         → 응답을 result로 채워 done=true 반환
+//   매 사용자 입력마다 POST /api/medical-chat/turn 호출
+//   → 백엔드 LLM이 두 가지 모드 중 하나로 응답:
+//     A) done=false: 후속 질문 (또는 무의미 입력 재요청 멘트)
+//     B) done=true:  진료과 분석 완료 + 병원 리스트 (result 채워짐)
 //
-// 이 방식의 이유:
-//   - 백엔드는 한 번 호출에 LLM이 진료과/응급도까지 한 번에 분류
-//   - 멀티턴 대화 자체는 사용자 경험을 위해 가짜로 만든 단계 (천천히 묻고 답하는 느낌)
-//   - 친구가 만든 채팅 UI 흐름을 그대로 살리면서 백엔드 API 한 번 호출로 통합
+// 이전 버전과 차이:
+//   - 이전: 1, 2턴은 프론트에서 가짜 응답, 3턴에 단발성 /api/hospitals/recommend 호출
+//   - 현재: 매 턴 백엔드 LLM 호출, LLM이 동적으로 후속 질문 생성 + 무의미 입력 거름망
+//
+// 화면(MedicalChatScreen.tsx)은 sendMessage() 시그니처를 그대로 호출하므로 변경 없음.
+// 시그니처 호환을 유지하기 위해 입출력 타입은 기존 medicalChat.ts 그대로.
 
 import { api } from "./api";
 import type {
@@ -18,103 +21,83 @@ import type {
 } from "../types/medicalChat";
 import type { RecommendResponse } from "../types/hospital";
 
-/** 마지막 턴 직전까지의 안내 멘트 (백엔드 호출 없이 사용자 입력 유도). */
-const FOLLOWUP_REPLIES: string[] = [
-  "그러시군요. 언제부터 그런 증상이 있으셨어요?",
-  "통증은 어느 정도이신가요? 함께 다른 증상이 있다면 알려주세요.",
-];
-
-/** 마지막 턴(병원 추천 호출 직전)에 표시할 안내 멘트. */
-const ANALYZING_REPLY = "잘 알겠습니다. 가까운 병원을 찾아드리고 있어요. 잠시만 기다려주세요.";
-
-/** 새 채팅 세션 ID 발급. 현재는 클라이언트 생성, 향후 백엔드 발급으로 이전 가능. */
+/** 새 채팅 세션 ID 발급. 백엔드는 stateless이므로 클라이언트가 생성. */
 export function createSessionId(): string {
   return `mc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-/**
- * 사용자가 입력한 모든 user 메시지를 한 문장으로 합친다.
- * 백엔드 /api/hospitals/recommend의 symptoms 파라미터로 사용.
- *
- * 예:
- *   사용자: "배가 아파요"
- *   사용자: "어제 저녁부터요"
- *   사용자: "오른쪽 아래쪽이 콕콕거려요"
- *   → "배가 아파요. 어제 저녁부터요. 오른쪽 아래쪽이 콕콕거려요."
- */
-function buildCombinedSymptoms(
-  history: { role: ChatRole; text: string }[],
-  currentMessage: string,
-): string {
-  const userMessages = history
-    .filter((m) => m.role === "user")
-    .map((m) => m.text.trim())
-    .filter(Boolean);
-  userMessages.push(currentMessage.trim());
-  return userMessages.join(". ");
+// ── 백엔드 API 통신 타입 ──
+
+/** 백엔드 /api/medical-chat/turn 요청 body. */
+interface ChatTurnApiRequest {
+  sessionId: string;
+  message: string;
+  history: { role: ChatRole; text: string }[];
+  latitude?: number;
+  longitude?: number;
+  radius?: number;
+}
+
+/** 백엔드 /api/medical-chat/turn 응답 body (ApiResponse 인터셉터 unwrap 후). */
+interface ChatTurnApiResponse {
+  sessionId: string;
+  done: boolean;
+  reply: string;
+  result: RecommendResponse | null;
 }
 
 /**
  * 사용자 메시지 → 봇 응답.
  *
- * 마지막 턴(누적된 user 메시지가 3개째)에서 백엔드 호출.
- * 이전 턴은 가벼운 후속 질문으로 시뮬레이션.
+ * 매 턴 백엔드를 호출. LLM이 후속 질문을 생성하거나(done=false) 분석 완료(done=true).
+ *
+ * @param req      sessionId, 현재 메시지, 이전 history
+ * @param options  현재 GPS 위치 / 반경 (없으면 백엔드 폴백 체인 동작)
  */
 export async function sendMessage(
   req: MedicalChatRequest,
   options?: {
-    /** 사용자 현재 GPS 위치 (있으면 백엔드에 전달) */
     latitude?: number;
     longitude?: number;
-    /** 검색 반경 (미터). 기본 5000 */
     radius?: number;
   },
 ): Promise<MedicalChatResponse> {
-  const userMessageCountIncludingCurrent =
-    req.history.filter((m) => m.role === "user").length + 1;
-
-  // 마지막 턴 (3번째) → 백엔드 호출
-  const isFinalTurn =
-    userMessageCountIncludingCurrent >= FOLLOWUP_REPLIES.length + 1;
-
-  if (!isFinalTurn) {
-    // 후속 질문 시뮬레이션: 1번째→인덱스 0, 2번째→인덱스 1
-    await sleep(800); // 봇이 생각하는 척 잠깐 대기
-    const idx = userMessageCountIncludingCurrent - 1;
-    return {
-      sessionId: req.sessionId,
-      reply: FOLLOWUP_REPLIES[idx],
-      done: false,
-    };
-  }
-
-  // 마지막 턴: 백엔드 호출
-  const symptoms = buildCombinedSymptoms(req.history, req.message);
+  const body: ChatTurnApiRequest = {
+    sessionId: req.sessionId,
+    message: req.message.trim(),
+    history: req.history.map((m) => ({ role: m.role, text: m.text })),
+    latitude: options?.latitude,
+    longitude: options?.longitude,
+    radius: options?.radius,
+  };
 
   try {
-    const res = await api.post<RecommendResponse>("/api/hospitals/recommend", {
-      symptoms,
-      latitude: options?.latitude,
-      longitude: options?.longitude,
-      radius: options?.radius,
-    });
+    const res = await api.post<ChatTurnApiResponse>(
+      "/api/medical-chat/turn",
+      body,
+    );
 
-    // res.data가 RecommendResponse (api.ts 인터셉터가 ApiResponse unwrap 처리)
-    const result = res.data as unknown as RecommendResponse;
+    // res.data가 ChatTurnApiResponse (api.ts 인터셉터가 ApiResponse unwrap 처리)
+    const data = res.data as unknown as ChatTurnApiResponse;
 
+    if (data.done && data.result) {
+      // 분석 완료 - 결과 화면으로 이동할 데이터 포함
+      return {
+        sessionId: data.sessionId,
+        reply: data.reply,
+        done: true,
+        result: data.result,
+      };
+    }
+
+    // 후속 질문 - 다음 사용자 입력 대기
     return {
-      sessionId: req.sessionId,
-      reply: ANALYZING_REPLY,
-      done: true,
-      result,
+      sessionId: data.sessionId,
+      reply: data.reply,
+      done: false,
     };
   } catch (e) {
     // ApiException은 api.ts 인터셉터가 던짐. 화면에서 toast로 표시됨.
-    // 여기서는 그대로 throw해서 화면이 catch하도록.
     throw e;
   }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

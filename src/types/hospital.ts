@@ -3,8 +3,6 @@
 // Spring Boot의 POST /api/hospitals/recommend 응답 구조와 1:1 매칭.
 // api.ts 인터셉터가 ApiResponse를 unwrap해주므로 data 필드는 신경 쓸 필요 없음.
 
-export type Urgency = "LOW" | "MEDIUM" | "HIGH";
-
 /** 사용자에게 보여줄 병원 정보 (백엔드 ScoredHospital). */
 export interface ScoredHospital {
   name: string;
@@ -14,8 +12,6 @@ export interface ScoredHospital {
   longitude: number;
   distanceMeters: number;
   isOpenNow: boolean | null;
-  isEmergency: boolean;
-  emergencyClass: number | null;
   score: number;
 }
 
@@ -37,16 +33,17 @@ export interface RecommendRequest {
 /**
  * 병원 추천 응답.
  *
- * urgency=HIGH인 경우:
- *   - hospitals는 일반 병의원 대신 응급의료기관 리스트
- *   - emergencyAlert 문구 포함 (UI에서 강조 표시 권장)
+ * - department: LLM이 선택한 1순위 진료과 한국어 (예: "치과")
+ * - secondaryDepartment: 차순위 진료과 한국어 (없으면 null. 예: "이비인후과")
+ * - confidence: LLM 분류 자신도 (0.0~1.0). UI에 "분석 정확도 92%" 같은 형태로 표시 가능.
+ * - reason: 사용자 친화적 설명문 (예: "치아·잇몸 통증으로 치과 진료가 필요해 보입니다.")
  */
 export interface RecommendResponse {
   department: string;
   departmentCode: string;
-  urgency: Urgency;
+  secondaryDepartment: string | null;
+  confidence: number;
   reason: string;
-  emergencyAlert: string | null;
   hospitals: ScoredHospital[];
   userLatitude: number;
   userLongitude: number;
