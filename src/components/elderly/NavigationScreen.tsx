@@ -27,6 +27,7 @@ import {
   formatDuration,
 } from "../../utils/haversine";
 import NavigationCardUI from "../../components/elderly/NavigationCardUI";
+import { shouldShowMarker } from "../../utils/markerFilter";
 
 // ── 상수 ──
 const CARD_ADVANCE_THRESHOLD_M = 20;
@@ -257,7 +258,7 @@ export default function NavigationScreen({
         )}
 
         {/* ── 안내지점 마커들 ── */}
-        {route.cards.map((card) => (
+        {route.cards.filter(shouldShowMarker).map((card) => (
           <NaverMapMarkerOverlay
             key={`point-${card.index}`}
             latitude={card.point.latitude}
