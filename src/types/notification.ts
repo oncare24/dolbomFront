@@ -18,7 +18,8 @@ export interface NotificationItem {
   body: string;
   wardId: number | null;
   relatedZoneId: number | null;
-  createdAt: string; // ISO datetime
+  sosEventId: number | null;
+  createdAt: string;
   readAt: string | null;
 }
 

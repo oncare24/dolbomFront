@@ -25,7 +25,7 @@ import {
 import { Colors, Spacing } from "../../theme";
 import type { ElderlyHomeAction } from "../../types/elderlyHome";
 import type { RootStackParamList } from "../../types/navigation";
-
+import { FloatingSosButton } from "../../components/elderly/FloatingSosButton";
 type Nav = NativeStackNavigationProp<RootStackParamList, "ElderlyHome">;
 
 export default function ElderlyHomeScreen() {
@@ -52,6 +52,10 @@ export default function ElderlyHomeScreen() {
   }, [invitationsQuery]);
 
   const handleAction = (action: ElderlyHomeAction) => {
+    if (action === "sos") {
+      navigation.navigate("Sos");
+      return;
+    }
     if (action === "hospital") {
       navigation.navigate("MedicalChat");
       return;
@@ -87,41 +91,47 @@ export default function ElderlyHomeScreen() {
         barStyle="dark-content"
         backgroundColor={Colors.surface.background}
       />
-      <ScreenContainer
-        audience="elderly"
-        scrollable
-        paddingTop={Spacing.md}
-        refreshing={refreshing}
-        onRefresh={onRefresh}
-      >
-        <View style={styles.headerSection}>
-          <HomeGreeting userName={userName} onSettingsPress={handleSettings} />
-        </View>
-
-        {invitations.length > 0 && (
-          <View style={styles.section}>
-            <ReceivedInvitationsBanner
-              count={invitations.length}
-              onPress={handleInvitationsPress}
+      <View style={{ flex: 1 }}>
+        <ScreenContainer
+          audience="elderly"
+          scrollable
+          paddingTop={Spacing.md}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+        >
+          <View style={styles.headerSection}>
+            <HomeGreeting
+              userName={userName}
+              onSettingsPress={handleSettings}
             />
           </View>
-        )}
 
-        <View style={styles.section}>
-          <HomeActionGrid onActionPress={handleAction} />
-        </View>
+          {invitations.length > 0 && (
+            <View style={styles.section}>
+              <ReceivedInvitationsBanner
+                count={invitations.length}
+                onPress={handleInvitationsPress}
+              />
+            </View>
+          )}
 
-        <View style={styles.section}>
-          <MedicationStatusCard
-            status={MOCK_MEDICATION_STATUS}
-            onPress={handleMedicationDetail}
-          />
-        </View>
+          <View style={styles.section}>
+            <HomeActionGrid onActionPress={handleAction} />
+          </View>
 
-        <View style={styles.lastSection}>
-          <SafeZoneStatusCard status={MOCK_SAFEZONE_STATUS} />
-        </View>
-      </ScreenContainer>
+          <View style={styles.section}>
+            <MedicationStatusCard
+              status={MOCK_MEDICATION_STATUS}
+              onPress={handleMedicationDetail}
+            />
+          </View>
+
+          <View style={styles.lastSection}>
+            <SafeZoneStatusCard status={MOCK_SAFEZONE_STATUS} />
+          </View>
+        </ScreenContainer>
+        <FloatingSosButton />
+      </View>
     </>
   );
 }

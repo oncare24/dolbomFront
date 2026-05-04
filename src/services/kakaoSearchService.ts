@@ -45,3 +45,28 @@ export async function searchPlaces(
   });
   return res.data;
 }
+
+// ───────────────────────────────────────────────────────
+// 좌표 → 주소 변환 (Reverse Geocoding)
+// ───────────────────────────────────────────────────────
+
+export interface ReverseGeocodeResult {
+  roadAddress: string | null; // 도로명 주소 (있으면 우선)
+  address: string | null; // 지번 주소 (도로명 없으면 fallback)
+}
+
+/**
+ * GET /api/kakao/coord2address?latitude={lat}&longitude={lng}
+ *
+ * 안전구역 등록/수정 화면에서 핀이 멈춘 좌표를 주소로 자동 변환.
+ * 둘 다 null이면 해상/산간 등 주소가 없는 위치 — 사용자가 직접 입력해야 함.
+ */
+export async function reverseGeocode(
+  latitude: number,
+  longitude: number,
+): Promise<ReverseGeocodeResult> {
+  const res = await api.get<ReverseGeocodeResult>("/api/kakao/coord2address", {
+    params: { latitude, longitude },
+  });
+  return res.data;
+}

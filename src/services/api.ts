@@ -48,9 +48,11 @@ export class ApiException extends Error {
 export const api: AxiosInstance = axios.create({
   baseURL: BASE_URL,
   timeout: 15000,
-  headers: { "Content-Type": "application/json" },
+  headers: {
+    "Content-Type": "application/json",
+    "ngrok-skip-browser-warning": "true",
+  },
 });
-
 // ─── 요청 인터셉터: accessToken 자동 부착 ───
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = useAuthStore.getState().accessToken;
@@ -130,8 +132,13 @@ api.interceptors.response.use(
         const refreshRes = await axios.post<ReissueBody>(
           `${BASE_URL}/api/auth/reissue`,
           { refreshToken },
+          {
+            headers: {
+              "Content-Type": "application/json",
+              "ngrok-skip-browser-warning": "true",
+            },
+          },
         );
-
         const newTokens = refreshRes.data.data;
         useAuthStore
           .getState()

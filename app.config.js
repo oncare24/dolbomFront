@@ -97,5 +97,11 @@ module.exports = {
       },
     },
     owner: "haeramram",
+    updates: {
+      url: "https://u.expo.dev/43cdb121-644c-4e46-8e94-190bbf37aa5c",
+    },
+    runtimeVersion: {
+      policy: "appVersion",
+    },
   },
 };

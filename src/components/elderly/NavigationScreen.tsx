@@ -56,13 +56,24 @@ export default function NavigationScreen({
   const [isOffRoute, setIsOffRoute] = useState(false);
 
   const cardIndexRef = useRef(0);
+  const routeRef = useRef<NavigationRoute | null>(null);
+  const onNavigationEndRef = useRef(onNavigationEnd);
   const locationSubRef = useRef<Location.LocationSubscription | null>(null);
   const mapRef = useRef<any>(null);
+
+  // onNavigationEnd가 부모에서 인라인 함수로 넘어오므로 ref 동기화
+  useEffect(() => {
+    onNavigationEndRef.current = onNavigationEnd;
+  }, [onNavigationEnd]);
 
   // ── 1. Tmap 응답 파싱 ──
   useEffect(() => {
     const parsed = parseTmapResponse(tmapResponse);
+    routeRef.current = parsed; // 추가
     setRoute(parsed);
+
+    cardIndexRef.current = 0; // 추가
+    setCurrentCardIndex(0); // 추가
 
     console.log(
       `[Nav] 파싱 완료: ${parsed.cards.length}장, ` +
@@ -115,6 +126,7 @@ export default function NavigationScreen({
   // ── 3. GPS 업데이트 → 카드 전환 판정 ──
   const handleLocationUpdate = useCallback(
     (coords: { latitude: number; longitude: number }) => {
+      const route = routeRef.current; // 변경: ref에서 읽기
       if (!route) return;
 
       const { latitude, longitude } = coords;
@@ -126,7 +138,6 @@ export default function NavigationScreen({
 
       const currentCard = cards[idx];
 
-      // 다음 안내지점까지 거리
       const targetCard = idx + 1 < cards.length ? cards[idx + 1] : currentCard;
       const dist = haversine(
         latitude,
@@ -136,7 +147,6 @@ export default function NavigationScreen({
       );
       setDistanceToNext(dist);
 
-      // 카드 전환 (20m 이내 접근)
       if (dist < CARD_ADVANCE_THRESHOLD_M && idx + 1 < cards.length) {
         const nextIdx = idx + 1;
         cardIndexRef.current = nextIdx;
@@ -148,7 +158,7 @@ export default function NavigationScreen({
         speakCard(cards[nextIdx]);
 
         if (cards[nextIdx].pointType === "end") {
-          setTimeout(() => onNavigationEnd?.(), 3000);
+          setTimeout(() => onNavigationEndRef.current?.(), 3000); // 변경
         }
 
         moveCamera(
@@ -157,7 +167,6 @@ export default function NavigationScreen({
         );
       }
 
-      // 경로 이탈 감지 (50m)
       if (currentCard.pathCoords.length > 0) {
         const pathDist = distanceToPath(
           latitude,
@@ -167,7 +176,7 @@ export default function NavigationScreen({
         setIsOffRoute(pathDist > OFF_ROUTE_THRESHOLD_M);
       }
     },
-    [route, onNavigationEnd],
+    [], // 변경: 빈 배열
   );
 
   // ── TTS ──
@@ -331,7 +340,7 @@ export default function NavigationScreen({
         onPress={() => {
           Speech.stop();
           locationSubRef.current?.remove();
-          onNavigationEnd?.();
+          onNavigationEndRef.current?.(); // 변경
         }}
       >
         <Text style={styles.closeButtonText}>✕</Text>

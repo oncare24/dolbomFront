@@ -1,13 +1,12 @@
-// 길안내 화면 래퍼.
+// 길안내 화면 래퍼 (mode 분기).
 //
 // 흐름:
 //   HospitalRecommendResult → 길안내 버튼 → 모달에서 모드 선택
 //   → 이 화면으로 이동 (mode + 출발/도착 좌표 받음)
-//   → 백엔드 /api/navigation/{walking|transit} 호출
-//   → 응답을 TmapResponse로 변환
-//   → NavigationScreen에 prop으로 전달
 //
-// NavigationScreen 자체는 친구가 만든 것 그대로 사용 (NaverMap 폴리라인 + TTS 등).
+// 모드별 분기:
+//   - walking: NavigationScreen (지도 + GPS 추적)
+//   - transit: TransitGuideScreen (정류장/버스 카드 리스트)
 
 import React, { useEffect, useState } from "react";
 import {
@@ -26,9 +25,11 @@ import type { RouteProp } from "@react-navigation/native";
 import { Colors, Spacing } from "../../theme";
 import { AppHeader } from "../../components/common/Header";
 import NavigationScreen from "../../components/elderly/NavigationScreen";
+import TransitGuideScreen from "../../components/elderly/TransitGuideScreen";
 import {
   getWalkingRoute,
   getTransitRoute,
+  type BackendTransitResponse,
 } from "../../services/navigationService";
 import { ApiException } from "../../services/api";
 import type { RootStackParamList } from "../../types/navigation";
@@ -43,7 +44,13 @@ export default function HospitalNavigationScreen() {
   const route = useRoute<RouteParams>();
   const { mode, startLat, startLon, endLat, endLon, endName } = route.params;
 
+  // 도보용
   const [tmapResponse, setTmapResponse] = useState<TmapResponse | null>(null);
+  // 대중교통용 (raw 백엔드 응답)
+  const [transitData, setTransitData] = useState<BackendTransitResponse | null>(
+    null,
+  );
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,30 +58,42 @@ export default function HospitalNavigationScreen() {
     let cancelled = false;
 
     async function loadRoute() {
-      console.log("[ROUTE] mode:", mode); // ★ 이거 추가
+      console.log("[ROUTE] mode:", mode);
       setLoading(true);
       setError(null);
+      setTmapResponse(null);
+      setTransitData(null);
+
       try {
-        const fn = mode === "walking" ? getWalkingRoute : getTransitRoute;
-        const { tmapResponse } = await fn({
-          startLat,
-          startLon,
-          endLat,
-          endLon,
-          endName,
-        });
-        if (!cancelled) {
-          setTmapResponse(tmapResponse);
+        if (mode === "walking") {
+          const { tmapResponse } = await getWalkingRoute({
+            startLat,
+            startLon,
+            endLat,
+            endLon,
+            endName,
+          });
+          if (!cancelled) setTmapResponse(tmapResponse);
+        } else {
+          // 대중교통
+          const { raw } = await getTransitRoute({
+            startLat,
+            startLon,
+            endLat,
+            endLon,
+            endName,
+          });
+          if (!cancelled) setTransitData(raw);
         }
       } catch (e) {
         if (cancelled) return;
+
         if (e instanceof ApiException && e.code === "V002") {
-          console.log("[ROUTE] V002 - falling back to walking"); // ★ 추가
-          // 대중교통 거리 너무 가까움
+          // 대중교통 거리 너무 가까움 → 도보로 폴백
+          console.log("[ROUTE] V002 - falling back to walking");
           setError(
             "거리가 너무 가까워서 대중교통 경로를 찾을 수 없어요. 도보로 안내해드릴게요.",
           );
-          // 자동으로 도보로 재시도
           try {
             const { tmapResponse } = await getWalkingRoute({
               startLat,
@@ -119,14 +138,18 @@ export default function HospitalNavigationScreen() {
         </View>
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#1976D2" />
-          <Text style={styles.loadingText}>길을 찾고 있어요...</Text>
+          <Text style={styles.loadingText}>
+            {mode === "transit"
+              ? "대중교통 경로를 찾고 있어요..."
+              : "길을 찾고 있어요..."}
+          </Text>
         </View>
       </View>
     );
   }
 
   // 에러
-  if (error || !tmapResponse) {
+  if (error || (!tmapResponse && !transitData)) {
     return (
       <View style={styles.root}>
         <StatusBar
@@ -151,13 +174,21 @@ export default function HospitalNavigationScreen() {
     );
   }
 
-  // 정상 — NavigationScreen 렌더
-  return (
-    <NavigationScreen
-      tmapResponse={tmapResponse}
-      onNavigationEnd={() => navigation.goBack()}
-    />
-  );
+  // 정상 렌더 — 모드에 따라 분기
+  if (transitData) {
+    return <TransitGuideScreen data={transitData} endName={endName} />;
+  }
+
+  if (tmapResponse) {
+    return (
+      <NavigationScreen
+        tmapResponse={tmapResponse}
+        onNavigationEnd={() => navigation.goBack()}
+      />
+    );
+  }
+
+  return null;
 }
 
 const styles = StyleSheet.create({

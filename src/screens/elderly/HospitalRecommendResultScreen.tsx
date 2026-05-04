@@ -25,7 +25,7 @@ import { Colors, Spacing } from "../../theme";
 import NavigationModeModal from "../../components/elderly/NavigationModeModal";
 import type { RootStackParamList } from "../../types/navigation";
 import type { ScoredHospital, RecommendResponse } from "../../types/hospital";
-
+import { FloatingSosButton } from "../../components/elderly/FloatingSosButton";
 type ResultRouteProp = RouteProp<RootStackParamList, "HospitalRecommendResult">;
 type Nav = NativeStackNavigationProp<
   RootStackParamList,
@@ -121,6 +121,7 @@ export default function HospitalRecommendResultScreen() {
         onSelect={handleSelectMode}
         onClose={() => setModalVisible(false)}
       />
+      <FloatingSosButton />
     </View>
   );
 }

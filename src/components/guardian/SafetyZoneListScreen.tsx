@@ -30,13 +30,13 @@ import { SafetyZoneStatusBanner } from "../../components/guardian/SafetyZoneStat
 import { SafetyZoneListItem } from "../../components/guardian/SafetyZoneListItem";
 import { AddSafetyZoneCard } from "../../components/guardian/AddSafetyZoneCard";
 
-import { MOCK_PROTEGE_LOCATION } from "../../mocks/safetyZoneMock";
 import { SAFETY_ZONE_MAX_COUNT } from "../../types/safetyZone";
 import {
   useSafetyZones,
   useToggleSafetyZoneNotification,
 } from "../../hooks/useSafetyZones";
 import { useMyWards } from "../../hooks/useMyWards";
+import { useLastLocation } from "../../hooks/useLastLocation";
 import { Colors, Spacing } from "../../theme";
 import type { RootStackParamList } from "../../types/navigation";
 import type { ProtegeStatusType } from "../../types/guardianHome";
@@ -83,6 +83,25 @@ export default function SafetyZoneListScreen() {
   } = useSafetyZones(protegeId);
   const toggleMutation = useToggleSafetyZoneNotification();
 
+  // 피보호자 마지막 보고 위치 (지도 위 "현재 위치" 마커용).
+  // 응답이 null이거나 위경도가 null이면 마커 미표시.
+  const {
+    data: lastLocation,
+    isLoading: isLastLocationLoading,
+    refetch: refetchLastLocation,
+  } = useLastLocation(protegeId);
+  const currentLocation =
+    lastLocation?.latitude != null && lastLocation?.longitude != null
+      ? {
+          latitude: lastLocation.latitude,
+          longitude: lastLocation.longitude,
+        }
+      : null;
+
+  // 지도 마운트 가드: zones와 lastLocation 둘 다 도착해야 지도 띄움.
+  // 카카오맵/우버/Life360 표준 패턴 — 데이터 없이 지도 띄우면 좌표 깜빡임 발생.
+  const isMapReady = !isLoading && !isLastLocationLoading;
+
   const safeZones = zones ?? [];
   const isFull = safeZones.length >= SAFETY_ZONE_MAX_COUNT;
 
@@ -90,11 +109,15 @@ export default function SafetyZoneListScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([refetchZones(), refetchWards()]);
+      await Promise.all([
+        refetchZones(),
+        refetchWards(),
+        refetchLastLocation(),
+      ]);
     } finally {
       setRefreshing(false);
     }
-  }, [refetchZones, refetchWards]);
+  }, [refetchZones, refetchWards, refetchLastLocation]);
 
   const handleZonePress = (zone: SafetyZone) => {
     mapRef.current?.focusZone(zone);
@@ -153,11 +176,17 @@ export default function SafetyZoneListScreen() {
           />
         }
       >
-        <SafetyZoneMapPreview
-          ref={mapRef}
-          zones={safeZones}
-          currentLocation={MOCK_PROTEGE_LOCATION}
-        />
+        {isMapReady ? (
+          <SafetyZoneMapPreview
+            ref={mapRef}
+            zones={safeZones}
+            currentLocation={currentLocation}
+          />
+        ) : (
+          <View style={styles.mapLoading}>
+            <ActivityIndicator color={Colors.brand.primary} size="large" />
+          </View>
+        )}
 
         <View style={styles.body}>
           <SafetyZoneStatusBanner
@@ -243,6 +272,13 @@ const styles = StyleSheet.create({
   loadingBox: {
     paddingVertical: Spacing.xl,
     alignItems: "center",
+  },
+  // 지도 로딩 자리. SafetyZoneMapPreview의 height(280)와 동일하게 맞춰 레이아웃 점프 방지.
+  mapLoading: {
+    height: 280,
+    backgroundColor: Colors.gray[100],
+    alignItems: "center",
+    justifyContent: "center",
   },
   errorBox: {
     paddingVertical: Spacing.xl,

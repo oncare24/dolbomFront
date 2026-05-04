@@ -20,6 +20,7 @@ export type RootStackParamList = {
   ElderlyHome: undefined;
   MedicalChat: undefined;
   ReceivedInvitations: undefined;
+  Sos: undefined;
 
   /** LLM 문진 결과 (병원 카드 리스트). MedicalChat에서 done=true 시 자동 이동. */
   HospitalRecommendResult: { result: RecommendResponse };
@@ -39,6 +40,7 @@ export type RootStackParamList = {
   SafetyZoneEdit: { protegeId: number; zoneId?: number };
   InviteWard: undefined;
   Notifications: undefined;
+  SosLocationView: { eventId: number };
 };
 
 declare global {

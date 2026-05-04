@@ -23,7 +23,7 @@ import {
 } from "../../hooks/useInvitations";
 import { ApiException } from "../../services/api";
 import { Colors, Spacing } from "../../theme";
-
+import { FloatingSosButton } from "../../components/elderly/FloatingSosButton";
 export default function InvitationListScreen() {
   const toast = useToast();
   const {
@@ -86,63 +86,66 @@ export default function InvitationListScreen() {
   const isEmpty = !isLoading && invitations.length === 0;
 
   return (
-    <ScreenContainer audience="elderly" paddingTop={0}>
-      <AppHeader title="받은 초대" audience="elderly" />
+    <View style={{ flex: 1 }}>
+      <ScreenContainer audience="elderly" paddingTop={0}>
+        <AppHeader title="받은 초대" audience="elderly" />
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={
-          isLoading || isEmpty ? styles.centerContent : styles.listContent
-        }
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[Colors.brand.primary]}
-            tintColor={Colors.brand.primary}
-          />
-        }
-      >
-        {isLoading ? (
-          <ActivityIndicator size="large" color={Colors.brand.primary} />
-        ) : isEmpty ? (
-          <View style={styles.emptyInner}>
-            <Ionicons
-              name="mail-open-outline"
-              size={64}
-              color={Colors.text.disabled}
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={
+            isLoading || isEmpty ? styles.centerContent : styles.listContent
+          }
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[Colors.brand.primary]}
+              tintColor={Colors.brand.primary}
             />
-            <AppText
-              variant="bodyBold"
-              audience="elderly"
-              color="secondary"
-              style={styles.emptyTitle}
-            >
-              받은 초대가 없어요
-            </AppText>
-            <AppText
-              variant="caption"
-              audience="elderly"
-              color="secondary"
-              style={styles.emptyDesc}
-            >
-              보호자가 요청을 보내면 여기에 보여요
-            </AppText>
-          </View>
-        ) : (
-          invitations.map((inv) => (
-            <ReceivedInvitationCard
-              key={inv.id}
-              invitation={inv}
-              onAccept={handleAccept}
-              onReject={handleReject}
-              isProcessing={processingId === inv.id}
-            />
-          ))
-        )}
-      </ScrollView>
-    </ScreenContainer>
+          }
+        >
+          {isLoading ? (
+            <ActivityIndicator size="large" color={Colors.brand.primary} />
+          ) : isEmpty ? (
+            <View style={styles.emptyInner}>
+              <Ionicons
+                name="mail-open-outline"
+                size={64}
+                color={Colors.text.disabled}
+              />
+              <AppText
+                variant="bodyBold"
+                audience="elderly"
+                color="secondary"
+                style={styles.emptyTitle}
+              >
+                받은 초대가 없어요
+              </AppText>
+              <AppText
+                variant="caption"
+                audience="elderly"
+                color="secondary"
+                style={styles.emptyDesc}
+              >
+                보호자가 요청을 보내면 여기에 보여요
+              </AppText>
+            </View>
+          ) : (
+            invitations.map((inv) => (
+              <ReceivedInvitationCard
+                key={inv.id}
+                invitation={inv}
+                onAccept={handleAccept}
+                onReject={handleReject}
+                isProcessing={processingId === inv.id}
+              />
+            ))
+          )}
+        </ScrollView>
+      </ScreenContainer>
+      <FloatingSosButton />
+    </View>
   );
 }
 
