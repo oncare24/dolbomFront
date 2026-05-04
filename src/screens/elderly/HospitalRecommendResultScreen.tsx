@@ -2,13 +2,9 @@
 //
 // 흐름:
 //   MedicalChatScreen (done=true) → navigation.navigate("HospitalRecommendResult", { result })
-//   → 이 화면에서 병원 카드 리스트 표시 + "길안내" 버튼
+//   → 이 화면에서 진료과 + 신뢰도 + 차순위 + 병원 카드 리스트 표시
 //   → 길안내 버튼 → NavigationModeModal (도보/대중교통 선택)
 //   → 선택 → HospitalNavigation 화면으로 이동
-//
-// 응급도 HIGH인 경우:
-//   - 상단에 빨간 emergencyAlert 배너
-//   - 병원 리스트는 응급의료기관
 
 import React, { useState } from "react";
 import {
@@ -43,9 +39,8 @@ export default function HospitalRecommendResultScreen() {
 
   const result: RecommendResponse = route.params.result;
 
-  const [selectedHospital, setSelectedHospital] = useState<ScoredHospital | null>(
-    null,
-  );
+  const [selectedHospital, setSelectedHospital] =
+    useState<ScoredHospital | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
 
   const handleNavigate = (hospital: ScoredHospital) => {
@@ -67,26 +62,37 @@ export default function HospitalRecommendResultScreen() {
     });
   };
 
+  // 신뢰도를 % 형태로 변환 (예: 0.92 → 92)
+  const confidencePct = Math.round(result.confidence * 100);
+
   return (
     <View style={styles.root}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.surface.background} />
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor={Colors.surface.background}
+      />
 
       <View style={{ paddingTop: insets.top }}>
         <AppHeader title="추천 병원" audience="elderly" />
       </View>
 
-      {/* 응급 케이스 배너 */}
-      {result.urgency === "HIGH" && result.emergencyAlert && (
-        <View style={styles.emergencyBanner}>
-          <Text style={styles.emergencyBannerText}>
-            🚨 {result.emergencyAlert}
-          </Text>
-        </View>
-      )}
-
-      {/* 진료과 + LLM 추론 근거 */}
+      {/* 진료과 + LLM 분석 정보 */}
       <View style={styles.summary}>
-        <Text style={styles.summaryDept}>{result.department}</Text>
+        <View style={styles.summaryHeader}>
+          <Text style={styles.summaryDept}>{result.department}</Text>
+          <View style={styles.confidenceBadge}>
+            <Text style={styles.confidenceText}>
+              분석 정확도 {confidencePct}%
+            </Text>
+          </View>
+        </View>
+
+        {result.secondaryDepartment && (
+          <Text style={styles.secondaryDept}>
+            또는: {result.secondaryDepartment}
+          </Text>
+        )}
+
         <Text style={styles.summaryReason}>{result.reason}</Text>
       </View>
 
@@ -95,7 +101,10 @@ export default function HospitalRecommendResultScreen() {
         keyExtractor={(item, idx) => `${item.name}-${idx}`}
         contentContainerStyle={styles.listContent}
         renderItem={({ item }) => (
-          <HospitalCard hospital={item} onNavigate={() => handleNavigate(item)} />
+          <HospitalCard
+            hospital={item}
+            onNavigate={() => handleNavigate(item)}
+          />
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
@@ -140,16 +149,9 @@ function HospitalCard({ hospital, onNavigate }: HospitalCardProps) {
 
   return (
     <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.cardName} numberOfLines={1}>
-          {hospital.name}
-        </Text>
-        {hospital.isEmergency && (
-          <View style={styles.emergencyTag}>
-            <Text style={styles.emergencyTagText}>응급</Text>
-          </View>
-        )}
-      </View>
+      <Text style={styles.cardName} numberOfLines={1}>
+        {hospital.name}
+      </Text>
 
       <Text style={styles.cardAddress} numberOfLines={2}>
         📍 {hospital.address}
@@ -174,36 +176,44 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.surface.background,
   },
-  emergencyBanner: {
-    backgroundColor: "#FFE4E4",
-    borderLeftWidth: 4,
-    borderLeftColor: "#E53935",
-    padding: Spacing.md,
-    marginHorizontal: Spacing.md,
-    marginTop: Spacing.md,
-    borderRadius: 8,
-  },
-  emergencyBannerText: {
-    color: "#C62828",
-    fontSize: 16,
-    fontWeight: "600",
-    lineHeight: 22,
-  },
   summary: {
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.md,
     paddingBottom: Spacing.sm,
   },
+  summaryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
   summaryDept: {
     fontSize: 24,
     fontWeight: "700",
     color: "#1976D2",
+    flex: 1,
+  },
+  confidenceBadge: {
+    backgroundColor: "#E3F2FD",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  confidenceText: {
+    color: "#1565C0",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  secondaryDept: {
+    fontSize: 14,
+    color: "#1976D2",
     marginBottom: 4,
+    fontWeight: "500",
   },
   summaryReason: {
     fontSize: 16,
     color: "#444",
     lineHeight: 22,
+    marginTop: 4,
   },
   listContent: {
     paddingHorizontal: Spacing.md,
@@ -221,28 +231,11 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 6,
-  },
   cardName: {
-    flex: 1,
     fontSize: 18,
     fontWeight: "700",
     color: "#222",
-  },
-  emergencyTag: {
-    backgroundColor: "#E53935",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginLeft: 6,
-  },
-  emergencyTagText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "700",
+    marginBottom: 6,
   },
   cardAddress: {
     fontSize: 14,
