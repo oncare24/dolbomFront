@@ -20,7 +20,7 @@ import {
   type UpdateSafetyZoneInput,
 } from "../services/safetyZoneService";
 import type { SafetyZone } from "../types/safetyZone";
-
+import { wardKeys } from "./useMyWards";
 // ───────────────────────────────────────────────────────
 // Query Keys (Factory)
 // ───────────────────────────────────────────────────────
@@ -68,6 +68,8 @@ export function useCreateSafetyZone() {
     mutationFn: (input: CreateSafetyZoneInput) => createSafetyZone(input),
     onSuccess: (zone) => {
       qc.invalidateQueries({ queryKey: safetyZoneKeys.list(zone.protegeId) });
+      // ward의 status는 안전구역 유무 + 마지막 위치 보고로 결정됨 → 같이 갱신
+      qc.invalidateQueries({ queryKey: wardKeys.list() });
     },
   });
 }
@@ -81,6 +83,8 @@ export function useUpdateSafetyZone() {
     onSuccess: (zone) => {
       qc.invalidateQueries({ queryKey: safetyZoneKeys.list(zone.protegeId) });
       qc.invalidateQueries({ queryKey: safetyZoneKeys.detail(zone.id) });
+      // 반경·위치가 바뀌면 안/밖 판정 결과도 바뀔 수 있음
+      qc.invalidateQueries({ queryKey: wardKeys.list() });
     },
   });
 }
@@ -139,6 +143,8 @@ export function useDeleteSafetyZone() {
       deleteSafetyZone(id),
     onSuccess: (_void, { protegeId }) => {
       qc.invalidateQueries({ queryKey: safetyZoneKeys.list(protegeId) });
+      // 마지막 안전구역 삭제 시 status가 unknown으로 돌아감
+      qc.invalidateQueries({ queryKey: wardKeys.list() });
     },
   });
 }

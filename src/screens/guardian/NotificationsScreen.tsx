@@ -72,12 +72,19 @@ export default function NotificationsScreen() {
       if (wardId == null) return;
 
       switch (notification.type) {
+        case "SOS":
+          // SOS 알림 → 위치 보기 화면. eventId 없으면 라우팅 스킵 (이전 버전 알림 안전 폴백)
+          if (notification.sosEventId != null) {
+            navigation.navigate("SosLocationView", {
+              eventId: notification.sosEventId,
+            });
+          }
+          break;
+
         case "ZONE_EXIT":
         case "DEVICE_DISCONNECTED":
-        case "SOS":
         case "INACTIVITY_WARNING":
           // 위치/안전 관련 알림 → 해당 피보호자의 안전구역 목록 화면.
-          // 거기서 등록된 안전구역과 마지막 위치를 확인 가능.
           navigation.navigate("SafetyZoneList", { protegeId: wardId });
           break;
 

@@ -3,7 +3,11 @@
 
 import React, { useEffect } from "react";
 import { View, ActivityIndicator } from "react-native";
-import { NavigationContainer } from "@react-navigation/native";
+import {
+  NavigationContainer,
+  createNavigationContainerRef,
+} from "@react-navigation/native";
+import * as Notifications from "expo-notifications";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -24,11 +28,16 @@ import LoginScreen from "./src/screens/auth/LoginScreen";
 import SignupScreen from "./src/screens/auth/SignupScreen";
 import ElderlyHomeScreen from "./src/components/elderly/ElderlyHomeScreen";
 import MedicalChatScreen from "./src/screens/elderly/MedicalChatScreen";
+import HospitalRecommendResultScreen from "./src/screens/elderly/HospitalRecommendResultScreen";
+import HospitalNavigationScreen from "./src/screens/elderly/HospitalNavigationScreen";
 import GuardianHomeScreen from "./src/components/guardian/GuardianHomeScreen";
 import SafetyZoneListScreen from "./src/components/guardian/SafetyZoneListScreen";
 import SafetyZoneEditScreen from "./src/components/guardian/SafetyZoneEditScreen";
 import NotificationsScreen from "./src/screens/guardian/NotificationsScreen";
+import SosScreen from "./src/screens/elderly/SosScreen";
+import SosLocationViewScreen from "./src/screens/guardian/SosLocationViewScreen";
 const Stack = createNativeStackNavigator<RootStackParamList>();
+export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
 // 알림 핸들러는 컴포넌트 트리 바깥에서 1회만 설정. (모듈 로드 시 즉시 실행)
 configureNotificationHandler();
@@ -74,7 +83,48 @@ function AppContent() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isHydrated = useAuthStore((s) => s.isHydrated);
   const role = useAuthStore((s) => s.user?.role);
+  // 콜드 스타트(앱 종료 → 알림 탭으로 실행) 케이스의 마지막 응답.
+  const lastNotificationResponse = Notifications.useLastNotificationResponse();
 
+  // 푸시 알림 탭 → 화면 라우팅.
+  // SOS 알림에 한해 보호자 계정에서 SosLocationView로 자동 이동.
+  // 데이터 페이로드는 백엔드 NotificationService.notifySosBroadcast가 실어 보냄
+  // ({ type:"SOS", eventId, wardId, latitude, longitude }).
+  useEffect(() => {
+    if (!isAuthenticated || role !== "guardian") return;
+
+    const handleResponse = (response: Notifications.NotificationResponse) => {
+      const data = response.notification.request.content.data as
+        | { type?: string; eventId?: string }
+        | undefined;
+
+      if (data?.type !== "SOS" || !data.eventId) return;
+
+      const eventId = Number(data.eventId);
+      if (Number.isNaN(eventId)) return;
+
+      // navigationRef가 ready될 때까지 잠깐 대기 (콜드 스타트는 컨테이너 마운트 전에 fire 가능).
+      const tryNavigate = (retry = 0) => {
+        if (navigationRef.isReady()) {
+          navigationRef.navigate("SosLocationView", { eventId });
+        } else if (retry < 10) {
+          setTimeout(() => tryNavigate(retry + 1), 100);
+        }
+      };
+      tryNavigate();
+    };
+
+    // 백그라운드/포그라운드에서 알림 탭
+    const sub =
+      Notifications.addNotificationResponseReceivedListener(handleResponse);
+
+    // 콜드 스타트 — 앱 시작 시 마지막 응답이 이미 있으면 즉시 처리
+    if (lastNotificationResponse) {
+      handleResponse(lastNotificationResponse);
+    }
+
+    return () => sub.remove();
+  }, [isAuthenticated, role, lastNotificationResponse]);
   if (!isHydrated) {
     return (
       <View
@@ -91,7 +141,7 @@ function AppContent() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!isAuthenticated ? (
           <>
@@ -103,9 +153,18 @@ function AppContent() {
             <Stack.Screen name="ElderlyHome" component={ElderlyHomeScreen} />
             <Stack.Screen name="MedicalChat" component={MedicalChatScreen} />
             <Stack.Screen
+              name="HospitalRecommendResult"
+              component={HospitalRecommendResultScreen}
+            />
+            <Stack.Screen
+              name="HospitalNavigation"
+              component={HospitalNavigationScreen}
+            />
+            <Stack.Screen
               name="ReceivedInvitations"
               component={InvitationListScreen}
             />
+            <Stack.Screen name="Sos" component={SosScreen} />
           </>
         ) : (
           <>
@@ -122,6 +181,10 @@ function AppContent() {
             <Stack.Screen
               name="Notifications"
               component={NotificationsScreen}
+            />
+            <Stack.Screen
+              name="SosLocationView"
+              component={SosLocationViewScreen}
             />
           </>
         )}

@@ -4,7 +4,13 @@
 //           mapSection flexShrink:0이 NaverMap 재measure 차단.
 //           카카오T/우버 표준 패턴.
 
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Alert, Keyboard, StatusBar, StyleSheet, View } from "react-native";
 import {
   useNavigation,
@@ -38,6 +44,8 @@ import {
   useUpdateSafetyZone,
   useDeleteSafetyZone,
 } from "../../hooks/useSafetyZones";
+import { useLastLocation } from "../../hooks/useLastLocation";
+import { useReverseGeocode } from "../../hooks/useReverseGeocode";
 import {
   SAFETY_ZONE_MIN_RADIUS,
   type SafetyZoneType,
@@ -51,6 +59,8 @@ import type { KakaoPlace } from "../../services/kakaoSearchService";
 type Route = RouteProp<RootStackParamList, "SafetyZoneEdit">;
 type Nav = NativeStackNavigationProp<RootStackParamList, "SafetyZoneEdit">;
 
+// 피보호자가 한 번도 위치 보고를 안 했거나 조회 실패 시 사용하는 fallback 좌표 (양산 부근).
+// 새 추가 모드에서는 useLastLocation으로 피보호자 실위치를 받아와 카메라를 옮긴다.
 const DEFAULT_CENTER = { latitude: 35.335, longitude: 129.0386 };
 
 export default function SafetyZoneEditScreen() {
@@ -95,6 +105,56 @@ export default function SafetyZoneEditScreen() {
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const isDeleting = deleteMutation.isPending;
 
+  // ─ 새 추가 모드 한정: 피보호자 마지막 보고 위치를 초기 카메라로 ─
+  // 수정 모드는 existingZone 좌표가 이미 있으므로 호출 X.
+  // 응답이 도착하면 한 번만 카메라 이동 (사용자가 그 사이 지도를 만졌다면 덮어쓰지 않음).
+  const { data: lastLocation } = useLastLocation(protegeId, !isEditMode);
+  const initialMoveDoneRef = useRef(false);
+
+  useEffect(() => {
+    if (
+      isEditMode ||
+      initialMoveDoneRef.current ||
+      lastLocation?.latitude == null ||
+      lastLocation?.longitude == null
+    ) {
+      return;
+    }
+    initialMoveDoneRef.current = true;
+    const lat = lastLocation.latitude;
+    const lng = lastLocation.longitude;
+    setCenter({ latitude: lat, longitude: lng });
+    // initialCamera는 변경 불가 → ref handle로 명시적 카메라 이동
+    mapRef.current?.moveTo(lat, lng);
+  }, [isEditMode, lastLocation]);
+
+  // ─ 핀 위치(center)가 바뀌면 자동으로 카카오 coord2address 호출 ─
+  // CenteredPinMap의 250ms 디바운스가 이미 있어서 핀이 멈춘 시점에만 호출됨.
+  // 카카오T 픽업·우버 표준 패턴 — 지도 위치와 주소 항상 동기화.
+  const { data: autoAddress } = useReverseGeocode(
+    center.latitude,
+    center.longitude,
+  );
+
+  // 수정 모드 진입 직후 첫 응답은 무시 — DB에 저장된 기존 주소 vs 카카오 응답이
+  // 도로명/지번 우선순위 차이로 미묘하게 다를 수 있어 깜빡임 방지.
+  // 새 추가 모드에서는 첫 응답부터 그대로 받아 자동 채움.
+  const initialReverseDoneRef = useRef(false);
+
+  useEffect(() => {
+    if (isEditMode && !initialReverseDoneRef.current) {
+      if (autoAddress) initialReverseDoneRef.current = true;
+      return;
+    }
+    if (!autoAddress) return;
+
+    const newAddress = autoAddress.roadAddress ?? autoAddress.address ?? "";
+    if (newAddress) {
+      setAddress(newAddress);
+      if (addressError) setAddressError("");
+    }
+  }, [autoAddress, isEditMode]);
+
   const handleCenterChanged = useCallback((lat: number, lng: number) => {
     setCenter({ latitude: lat, longitude: lng });
   }, []);
@@ -107,12 +167,7 @@ export default function SafetyZoneEditScreen() {
     mapRef.current?.moveTo(place.latitude, place.longitude);
     if (addressError) setAddressError("");
     setSearchModalVisible(false);
-
-    // 이름 비어있으면 장소명을 기본값으로 채움 (시니어 친화 — 한 번 더 입력 안 해도 됨)
-    if (name.trim().length === 0) {
-      // 20자 제한 준수
-      setName(place.placeName.slice(0, 20));
-    }
+    // 이름 자동 채움은 일관성(최초 1회만 동작) 문제로 제거 — 사용자가 직접 입력.
   };
 
   const handleUseCurrentLocation = async () => {
@@ -324,14 +379,19 @@ export default function SafetyZoneEditScreen() {
         </View>
 
         <View style={styles.field}>
-          <AppText
-            variant="bodyBold"
-            audience="guardian"
-            color="primary"
-            style={styles.label}
-          >
-            주소
-          </AppText>
+          <View style={styles.labelRow}>
+            <AppText
+              variant="bodyBold"
+              audience="guardian"
+              color="primary"
+              style={styles.label}
+            >
+              주소
+            </AppText>
+            <AppText variant="caption" audience="guardian" color="secondary">
+              지도를 움직이면 자동 채움
+            </AppText>
+          </View>
           <Pressable
             onPress={() => {
               Keyboard.dismiss();
@@ -476,5 +536,11 @@ const styles = StyleSheet.create({
   },
   addressTriggerError: {
     borderColor: Colors.semantic.danger,
+  },
+  labelRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    marginBottom: Spacing.sm,
   },
 });
