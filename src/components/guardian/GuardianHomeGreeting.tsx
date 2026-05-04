@@ -10,19 +10,23 @@ import { haptic } from "../../utils/haptics";
 
 interface Props {
   userName: string;
-  hasUnreadNotification: boolean;
+  unreadCount: number;
   onNotificationPress: () => void;
 }
 
 export function GuardianHomeGreeting({
   userName,
-  hasUnreadNotification,
+  unreadCount,
   onNotificationPress,
 }: Props) {
   const handlePress = () => {
     haptic.light();
     onNotificationPress();
   };
+
+  const hasUnread = unreadCount > 0;
+  // 99 초과는 "99+"로 (시중앱 표준)
+  const displayCount = unreadCount > 99 ? "99+" : String(unreadCount);
 
   return (
     <View style={styles.container}>
@@ -50,7 +54,7 @@ export function GuardianHomeGreeting({
         hitSlop={8}
         accessibilityRole="button"
         accessibilityLabel={
-          hasUnreadNotification ? "알림 (읽지 않음 있음)" : "알림"
+          hasUnread ? `알림 ${unreadCount}개 안 읽음` : "알림"
         }
         style={styles.iconButton}
       >
@@ -59,9 +63,11 @@ export function GuardianHomeGreeting({
           size={26}
           color={Colors.text.primary}
         />
-        {hasUnreadNotification && (
-          <View style={styles.dotWrap}>
-            <Badge size="dot" variant="danger" />
+        {hasUnread && (
+          <View style={styles.badgeWrap}>
+            <Badge size="small" variant="danger">
+              {displayCount}
+            </Badge>
           </View>
         )}
       </Pressable>
@@ -88,9 +94,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     position: "relative",
   },
-  dotWrap: {
+  badgeWrap: {
     position: "absolute",
-    top: 14,
-    right: 14,
+    top: 6,
+    right: 6,
+    minWidth: 18,
   },
 });

@@ -71,18 +71,20 @@ export default function LoginScreen() {
 
     setIsLoading(true);
     try {
+      // 1단계: 토큰만 받아서 임시 저장 (isAuthenticated는 아직 false)
+      //   → axios 인터셉터가 다음 getMe() 호출 시 헤더에 토큰 부착함
+      //   → App.tsx 라우팅은 아직 Login 화면 유지 (isAuthenticated=false)
       const tokens = await loginApi({ phone: phoneNumber, password });
-      // 토큰만 먼저 저장 (다음 getMe 호출 시 헤더에 부착됨)
-      setLogin(tokens.accessToken, tokens.refreshToken, {
-        id: 0,
-        name: "",
-        phoneNumber,
-        role: "elderly",
-      });
-      // 진짜 user 정보로 갱신
+      useAuthStore
+        .getState()
+        .setTokensOnly(tokens.accessToken, tokens.refreshToken);
+
+      // 2단계: 진짜 user 정보 조회
       const me = await getMe();
+
+      // 3단계: 한 번에 isAuthenticated=true + user 확정
+      //   → App.tsx 라우팅이 정확한 role로 분기 (피보호자 화면 거치지 않음)
       setLogin(tokens.accessToken, tokens.refreshToken, me);
-      // App.tsx 라우팅이 자동으로 홈으로 분기
     } catch (e) {
       // 4xx만 Alert, 5xx/네트워크 끊김/타임아웃은 인터셉터의 Toast에 맡김
       if (

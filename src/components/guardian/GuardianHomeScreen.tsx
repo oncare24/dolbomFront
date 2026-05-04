@@ -29,6 +29,8 @@ import {
   useSentInvitations,
 } from "../../hooks/useInvitations";
 import { useMyWards } from "../../hooks/useMyWards";
+import { useFcmTokenRegistration } from "../../hooks/useFcmTokenRegistration";
+import { useUnreadCount } from "../../hooks/useNotifications";
 import { Colors, Spacing } from "../../theme";
 import type { Protege } from "../../types/guardianHome";
 import { useNavigation } from "@react-navigation/native";
@@ -44,7 +46,10 @@ export default function GuardianHomeScreen() {
   const { data: me } = useMe();
   const fallbackName = useAuthStore((s) => s.user?.name) ?? "보호자";
   const userName = me?.name ?? fallbackName;
-
+  useFcmTokenRegistration(true);
+  const { data: unreadCountData, refetch: refetchUnreadCount } =
+    useUnreadCount();
+  const hasUnread = (unreadCountData?.count ?? 0) > 0;
   const {
     data: wards = [],
     isLoading: wardsLoading,
@@ -62,16 +67,19 @@ export default function GuardianHomeScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await Promise.all([refetchWards(), sentInvitationsQuery.refetch()]);
+      await Promise.all([
+        refetchWards(),
+        sentInvitationsQuery.refetch(),
+        refetchUnreadCount(),
+      ]);
     } finally {
       setRefreshing(false);
     }
-  }, [refetchWards, sentInvitationsQuery]);
+  }, [refetchWards, sentInvitationsQuery, refetchUnreadCount]);
 
   const handleNotificationPress = () => {
-    toast.show({ message: "알림 화면 (구현 예정)", variant: "info" });
+    navigation.navigate("Notifications");
   };
-
   const handleProtegePress = (protege: Protege) => {
     navigation.navigate("SafetyZoneList", { protegeId: protege.id });
   };
@@ -121,7 +129,7 @@ export default function GuardianHomeScreen() {
         <View style={styles.headerSection}>
           <GuardianHomeGreeting
             userName={userName}
-            hasUnreadNotification
+            unreadCount={unreadCountData?.count ?? 0}
             onNotificationPress={handleNotificationPress}
           />
         </View>

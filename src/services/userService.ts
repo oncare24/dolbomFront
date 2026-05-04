@@ -1,7 +1,7 @@
 // User 도메인 API 함수 모음.
 // authService에서 getMe를 분리해서 user 정보 조회/수정은 여기에 모음.
 //
-// 향후 추가될 함수: updateMyProfile, updateFcmToken, deleteMyAccount 등.
+// 향후 추가될 함수: updateMyProfile, deleteMyAccount 등.
 
 import { api } from "./api";
 import type { AuthUser, UserRole } from "../stores/authStore";
@@ -48,4 +48,18 @@ export async function getMe(): Promise<AuthUser> {
     phoneNumber: formatPhone(u.phone),
     role: toFrontRole(u.role),
   };
+}
+
+/**
+ * FCM 토큰을 서버에 등록/갱신.
+ *
+ * 호출 시점:
+ *   1) 로그인 직후 (useFcmTokenRegistration 훅이 자동 호출)
+ *   2) Firebase가 토큰을 회전시킨 onTokenRefresh 콜백
+ *
+ * 실패해도 로그인 흐름을 막진 않음 — 푸시는 보조 기능이고
+ * 다음 앱 진입 시 다시 시도되니까.
+ */
+export async function updateFcmToken(fcmToken: string): Promise<void> {
+  await api.patch("/api/users/me/fcm-token", { fcmToken });
 }

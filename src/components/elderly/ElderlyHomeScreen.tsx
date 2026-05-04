@@ -16,6 +16,7 @@ import { SafeZoneStatusCard } from "../../components/elderly/SafeZoneStatusCard"
 import { ReceivedInvitationsBanner } from "../../components/elderly/ReceivedInvitationsBanner";
 import { useAuthStore } from "../../stores/authStore";
 import { useBackgroundLocation } from "../../hooks/useBackgroundLocation";
+import { useFcmTokenRegistration } from "../../hooks/useFcmTokenRegistration";
 import { useReceivedInvitations } from "../../hooks/useInvitations";
 import {
   MOCK_MEDICATION_STATUS,
@@ -34,6 +35,7 @@ export default function ElderlyHomeScreen() {
   const toast = useToast();
 
   useBackgroundLocation(userRole === "elderly");
+  useFcmTokenRegistration(userRole === "elderly");
 
   // 받은 초대 — PENDING이 1건 이상이면 배너 노출
   const invitationsQuery = useReceivedInvitations();
