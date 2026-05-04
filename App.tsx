@@ -16,6 +16,10 @@ import { registerToast } from "./src/utils/toastBridge";
 import InviteWardScreen from "./src/screens/guardian/InviteWardScreen";
 import type { RootStackParamList } from "./src/types/navigation";
 import "./src/services/backgroundLocationTask";
+import {
+  configureNotificationHandler,
+  registerAndroidNotificationChannel,
+} from "./src/services/notificationService";
 import LoginScreen from "./src/screens/auth/LoginScreen";
 import SignupScreen from "./src/screens/auth/SignupScreen";
 import ElderlyHomeScreen from "./src/components/elderly/ElderlyHomeScreen";
@@ -23,10 +27,11 @@ import MedicalChatScreen from "./src/screens/elderly/MedicalChatScreen";
 import GuardianHomeScreen from "./src/components/guardian/GuardianHomeScreen";
 import SafetyZoneListScreen from "./src/components/guardian/SafetyZoneListScreen";
 import SafetyZoneEditScreen from "./src/components/guardian/SafetyZoneEditScreen";
-import HospitalRecommendResultScreen from "./src/screens/elderly/HospitalRecommendResultScreen";
-import HospitalNavigationScreen from "./src/screens/elderly/HospitalNavigationScreen";
-
+import NotificationsScreen from "./src/screens/guardian/NotificationsScreen";
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+// 알림 핸들러는 컴포넌트 트리 바깥에서 1회만 설정. (모듈 로드 시 즉시 실행)
+configureNotificationHandler();
 
 // React Query 전역 클라이언트.
 // - staleTime 5분: 그 동안 같은 쿼리 재호출 시 네트워크 안 타고 캐시에서 즉시 반환
@@ -51,6 +56,17 @@ function ToastBridgeRegister() {
   useEffect(() => {
     registerToast(toast.show);
   }, [toast.show]);
+  return null;
+}
+
+// Android 알림 채널은 앱 부팅 시 1회 등록 (인증 상태 무관).
+// 채널이 없으면 안드로이드 OS가 푸시를 무음 처리하므로 필수.
+function NotificationChannelInitializer() {
+  useEffect(() => {
+    registerAndroidNotificationChannel().catch((e) =>
+      console.warn("[FCM] channel registration failed:", e),
+    );
+  }, []);
   return null;
 }
 
@@ -90,14 +106,6 @@ function AppContent() {
               name="ReceivedInvitations"
               component={InvitationListScreen}
             />
-            <Stack.Screen
-              name="HospitalRecommendResult"
-              component={HospitalRecommendResultScreen}
-            />
-            <Stack.Screen
-              name="HospitalNavigation"
-              component={HospitalNavigationScreen}
-            />
           </>
         ) : (
           <>
@@ -111,6 +119,10 @@ function AppContent() {
               component={SafetyZoneEditScreen}
             />
             <Stack.Screen name="InviteWard" component={InviteWardScreen} />
+            <Stack.Screen
+              name="Notifications"
+              component={NotificationsScreen}
+            />
           </>
         )}
       </Stack.Navigator>
@@ -125,6 +137,7 @@ export default function App() {
         <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
           <ToastProvider>
             <ToastBridgeRegister />
+            <NotificationChannelInitializer />
             <AppContent />
           </ToastProvider>
         </KeyboardProvider>

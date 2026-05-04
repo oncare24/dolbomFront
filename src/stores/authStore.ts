@@ -3,6 +3,10 @@
 // 변경점(2026-04-28):
 //  - refreshToken 추가 저장
 //  - updateTokens(): axios 인터셉터의 자동 재발급 시 토큰만 갱신용
+//
+// 변경점(2026-05-02):
+//  - setTokensOnly(): 로그인 흐름에서 getMe 전에 토큰만 임시 저장.
+//    isAuthenticated는 false 유지 → 라우팅이 elderly/guardian 분기 안 함.
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
@@ -26,6 +30,7 @@ interface AuthState {
   isHydrated: boolean;
 
   // 액션
+  setTokensOnly: (accessToken: string, refreshToken: string) => void;
   login: (accessToken: string, refreshToken: string, user: AuthUser) => void;
   updateTokens: (accessToken: string, refreshToken: string) => void;
   logout: () => void;
@@ -48,6 +53,16 @@ export const useAuthStore = create<AuthState>()(
       refreshToken: null,
       isHydrated: false,
 
+      // 로그인 흐름 1단계: 토큰만 임시 저장 (getMe 호출 시 axios 인터셉터가 헤더 부착용으로 사용).
+      // isAuthenticated를 false로 유지해서 App.tsx 라우팅이 분기 안 하게 함.
+      setTokensOnly: (accessToken, refreshToken) =>
+        set({
+          accessToken,
+          refreshToken,
+        }),
+
+      // 로그인 흐름 2단계: getMe 결과까지 받아서 한 번에 인증 완료 + user 채움.
+      // 이 시점에 비로소 isAuthenticated=true → 라우팅이 정확한 화면으로 분기.
       login: (accessToken, refreshToken, user) =>
         set({
           isAuthenticated: true,
