@@ -52,7 +52,7 @@ export function useBackgroundLocation(enabled: boolean) {
       if (alreadyRunning) return;
 
       await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
-        accuracy: Location.Accuracy.Balanced,
+        accuracy: Location.Accuracy.High,
         timeInterval: REPORT_INTERVAL_MS,
         deferredUpdatesInterval: REPORT_INTERVAL_MS, //임시테스ㅡ용
 

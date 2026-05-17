@@ -34,7 +34,7 @@ import {
 import { ApiException } from "../../services/api";
 import type { RootStackParamList } from "../../types/navigation";
 import type { TmapResponse } from "../../types/tmap";
-
+import * as Location from "expo-location";
 type Nav = NativeStackNavigationProp<RootStackParamList, "HospitalNavigation">;
 type RouteParams = RouteProp<RootStackParamList, "HospitalNavigation">;
 
@@ -64,21 +64,37 @@ export default function HospitalNavigationScreen() {
       setTmapResponse(null);
       setTransitData(null);
 
+      // 길안내 시작 시점의 현재 GPS를 출발지로 사용
+      // (문진 시점 좌표 result.userLatitude/Longitude는 이미 이동했을 수 있음)
+      let actualStartLat = startLat;
+      let actualStartLon = startLon;
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === "granted") {
+          const pos = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.High,
+          });
+          actualStartLat = pos.coords.latitude;
+          actualStartLon = pos.coords.longitude;
+        }
+      } catch {
+        // 못 받으면 fallback으로 문진 시점 좌표 사용
+      }
+
       try {
         if (mode === "walking") {
           const { tmapResponse } = await getWalkingRoute({
-            startLat,
-            startLon,
+            startLat: actualStartLat,
+            startLon: actualStartLon,
             endLat,
             endLon,
             endName,
           });
           if (!cancelled) setTmapResponse(tmapResponse);
         } else {
-          // 대중교통
           const { raw } = await getTransitRoute({
-            startLat,
-            startLon,
+            startLat: actualStartLat,
+            startLon: actualStartLon,
             endLat,
             endLon,
             endName,
@@ -89,15 +105,14 @@ export default function HospitalNavigationScreen() {
         if (cancelled) return;
 
         if (e instanceof ApiException && e.code === "V002") {
-          // 대중교통 거리 너무 가까움 → 도보로 폴백
           console.log("[ROUTE] V002 - falling back to walking");
           setError(
             "거리가 너무 가까워서 대중교통 경로를 찾을 수 없어요. 도보로 안내해드릴게요.",
           );
           try {
             const { tmapResponse } = await getWalkingRoute({
-              startLat,
-              startLon,
+              startLat: actualStartLat,
+              startLon: actualStartLon,
               endLat,
               endLon,
               endName,
@@ -106,7 +121,7 @@ export default function HospitalNavigationScreen() {
               setTmapResponse(tmapResponse);
               setError(null);
             }
-          } catch (e2) {
+          } catch {
             if (!cancelled) {
               setError("길안내를 불러올 수 없어요. 잠시 후 다시 시도해주세요.");
             }

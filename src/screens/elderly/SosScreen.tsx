@@ -303,7 +303,9 @@ function DoneView({
 
       <AppText variant="body" color="secondary" style={styles.resultBody}>
         {hasGuardian
-          ? `보호자 ${result.notifiedGuardianCount}명에게${"\n"}긴급 호출을 알렸어요.`
+          ? `보호자 ${
+              result.notifiedGuardianCount
+            }명에게${"\n"}긴급 호출을 알렸어요.`
           : `지금은 119에 직접${"\n"}전화해주세요.`}
       </AppText>
 

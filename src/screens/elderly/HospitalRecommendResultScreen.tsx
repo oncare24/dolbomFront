@@ -139,14 +139,14 @@ function HospitalCard({ hospital, onNavigate }: HospitalCardProps) {
     hospital.isOpenNow === true
       ? "영업 중"
       : hospital.isOpenNow === false
-        ? "영업 종료"
-        : "영업 정보 없음";
+      ? "영업 종료"
+      : "영업 정보 없음";
   const openColor =
     hospital.isOpenNow === true
       ? "#3CB371"
       : hospital.isOpenNow === false
-        ? "#A0A0A0"
-        : "#A0A0A0";
+      ? "#A0A0A0"
+      : "#A0A0A0";
 
   return (
     <View style={styles.card}>

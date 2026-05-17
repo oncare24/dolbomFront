@@ -13,11 +13,17 @@
       "channel": "preview",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://nontransposable-neda-remorselessly.ngrok-free.dev"
       }
     },
     "production": {
       "channel": "production",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://nontransposable-neda-remorselessly.ngrok-free.dev"
+      }
     }
   },
   "submit": {
