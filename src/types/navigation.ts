@@ -41,6 +41,23 @@ export type RootStackParamList = {
   InviteWard: undefined;
   Notifications: undefined;
   SosLocationView: { eventId: number };
+
+  // ─── 튜토리얼 화면 (mock 데이터로 시연, 실제 API 호출 없음) ───
+  TutorialHome: undefined;
+  TutorialMedicalChat: undefined;
+  TutorialHospitalResult: { result: RecommendResponse };
+  TutorialNavigation: {
+    mode: "walking" | "transit";
+    startLat: number;
+    startLon: number;
+    endLat: number;
+    endLon: number;
+    endName?: string;
+  };
+  TutorialComplete: undefined;
+
+  // ─── 설정 화면 ───
+  ElderlySettings: undefined;
 };
 
 declare global {
