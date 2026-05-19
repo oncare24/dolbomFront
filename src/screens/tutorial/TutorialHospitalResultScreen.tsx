@@ -1,21 +1,17 @@
-// 병원 추천 결과 화면.
-//
-// 흐름:
-//   MedicalChatScreen (done=true) → navigation.navigate("HospitalRecommendResult", { result })
-//   → 이 화면에서 진료과 + 신뢰도 + 차순위 + 병원 카드 리스트 표시
-//   → 카드의 [전화 걸기]: 시스템 다이얼러 호출 (Linking.openURL("tel:..."))
-//   → 카드의 [길안내]: NavigationModeModal → HospitalNavigation 화면으로 이동
+// [튜토리얼] 병원 추천 결과 mock.
+// 실제 HospitalRecommendResultScreen과 동일한 UI/사이즈.
+// 차이점:
+//   - 전화 걸기 → 실제 다이얼러 X, 안내 토스트로 시연
+//   - 길안내 → 모달 → 도보/대중교통 선택 → TutorialNavigation
 
 import React, { useState } from "react";
 import {
   FlatList,
-  Linking,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  StatusBar,
-  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -24,24 +20,27 @@ import type { RouteProp } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { AppHeader } from "../../components/common/Header";
+import { useToast } from "../../components/common/Toast";
 import { Colors, Spacing } from "../../theme";
 import NavigationModeModal from "../../components/elderly/NavigationModeModal";
+import { TutorialHintBubble } from "../../components/tutorial/TutorialHintBubble";
 import type { RootStackParamList } from "../../types/navigation";
-import type { ScoredHospital, RecommendResponse } from "../../types/hospital";
-import { FloatingSosButton } from "../../components/elderly/FloatingSosButton";
+import type { ScoredHospital } from "../../types/hospital";
+import { TUTORIAL_HINTS } from "../../constants/tutorialMocks";
 
-type ResultRouteProp = RouteProp<RootStackParamList, "HospitalRecommendResult">;
+type ResultRouteProp = RouteProp<RootStackParamList, "TutorialHospitalResult">;
 type Nav = NativeStackNavigationProp<
   RootStackParamList,
-  "HospitalRecommendResult"
+  "TutorialHospitalResult"
 >;
 
-export default function HospitalRecommendResultScreen() {
+export default function TutorialHospitalResultScreen() {
   const insets = useSafeAreaInsets();
   const route = useRoute<ResultRouteProp>();
   const navigation = useNavigation<Nav>();
+  const toast = useToast();
 
-  const result: RecommendResponse = route.params.result;
+  const result = route.params.result;
 
   const [selectedHospital, setSelectedHospital] =
     useState<ScoredHospital | null>(null);
@@ -54,9 +53,9 @@ export default function HospitalRecommendResultScreen() {
 
   const handleSelectMode = (mode: "walking" | "transit") => {
     if (!selectedHospital) return;
-    setModalVisible(false);
 
-    navigation.navigate("HospitalNavigation", {
+    setModalVisible(false);
+    navigation.navigate("TutorialNavigation", {
       mode,
       endLat: selectedHospital.latitude,
       endLon: selectedHospital.longitude,
@@ -66,8 +65,16 @@ export default function HospitalRecommendResultScreen() {
     });
   };
 
-  // 신뢰도를 % 형태로 변환
+  // 튜토리얼: 실제 전화 X — 안내 토스트만
+  const handleTutorialCall = () => {
+    toast.show({
+      message: "실제로 사용하시면 전화 앱이 열려요.",
+      variant: "info",
+    });
+  };
+
   const confidencePct = Math.round(result.confidence * 100);
+  const hintText = modalVisible ? TUTORIAL_HINTS.modal : TUTORIAL_HINTS.result;
 
   return (
     <View style={styles.root}>
@@ -80,7 +87,6 @@ export default function HospitalRecommendResultScreen() {
         <AppHeader title="추천 병원" audience="elderly" />
       </View>
 
-      {/* 진료과 + LLM 분석 정보 */}
       <View style={styles.summary}>
         <View style={styles.summaryHeader}>
           <Text style={styles.summaryDept}>{result.department}</Text>
@@ -90,13 +96,11 @@ export default function HospitalRecommendResultScreen() {
             </Text>
           </View>
         </View>
-
         {result.secondaryDepartment && (
           <Text style={styles.secondaryDept}>
             또는: {result.secondaryDepartment}
           </Text>
         )}
-
         <Text style={styles.summaryReason}>{result.reason}</Text>
       </View>
 
@@ -107,16 +111,10 @@ export default function HospitalRecommendResultScreen() {
         renderItem={({ item }) => (
           <HospitalCard
             hospital={item}
+            onCall={handleTutorialCall}
             onNavigate={() => handleNavigate(item)}
           />
         )}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyText}>
-              검색 반경 내 병원이 없어요. 잠시 후 다시 시도해주세요.
-            </Text>
-          </View>
-        }
       />
 
       <NavigationModeModal
@@ -125,19 +123,19 @@ export default function HospitalRecommendResultScreen() {
         onSelect={handleSelectMode}
         onClose={() => setModalVisible(false)}
       />
-      <FloatingSosButton />
+
+      <TutorialHintBubble text={hintText} />
     </View>
   );
 }
 
-// ── 병원 카드 컴포넌트 ──
-
 interface HospitalCardProps {
   hospital: ScoredHospital;
+  onCall: () => void;
   onNavigate: () => void;
 }
 
-function HospitalCard({ hospital, onNavigate }: HospitalCardProps) {
+function HospitalCard({ hospital, onCall, onNavigate }: HospitalCardProps) {
   const km = (hospital.distanceMeters / 1000).toFixed(1);
   const openLabel =
     hospital.isOpenNow === true
@@ -152,56 +150,29 @@ function HospitalCard({ hospital, onNavigate }: HospitalCardProps) {
       ? "#A0A0A0"
       : "#A0A0A0";
 
-  // 전화번호 유효성 확인 — 없거나 빈 문자열이면 버튼 비활성화
-  const hasTel = !!hospital.tel && hospital.tel.trim().length > 0;
-
-  const handleCall = async () => {
-    if (!hasTel) return;
-    // 숫자, +, # 만 남김 (다이얼러가 안전하게 인식하도록)
-    const cleaned = hospital.tel!.replace(/[^0-9+#]/g, "");
-    const url = `tel:${cleaned}`;
-
-    try {
-      const canOpen = await Linking.canOpenURL(url);
-      if (!canOpen) {
-        Alert.alert("전화 걸기 실패", "전화 앱을 열 수 없어요.");
-        return;
-      }
-      await Linking.openURL(url);
-    } catch {
-      Alert.alert("전화 걸기 실패", "잠시 후 다시 시도해 주세요.");
-    }
-  };
-
   return (
     <View style={styles.card}>
       <Text style={styles.cardName} numberOfLines={2}>
         {hospital.name}
       </Text>
-
       <Text style={styles.cardAddress} numberOfLines={2}>
         📍 {hospital.address}
       </Text>
-
       <View style={styles.cardMeta}>
         <Text style={styles.cardDistance}>🚶 {km}km</Text>
         <Text style={[styles.cardOpen, { color: openColor }]}>{openLabel}</Text>
       </View>
-
       <Text style={styles.cardTel}>📞 {hospital.tel || "전화 정보 없음"}</Text>
 
-      {/* 전화 걸기 버튼 — 노인 친화: 큰 글씨, 초록색 (전화 앱과 통일감) */}
       <TouchableOpacity
-        style={[styles.callBtn, !hasTel && styles.callBtnDisabled]}
-        onPress={handleCall}
-        disabled={!hasTel}
+        style={styles.callBtn}
+        onPress={onCall}
         activeOpacity={0.85}
       >
         <Ionicons name="call" size={24} color="#fff" />
         <Text style={styles.callBtnText}>전화 걸기</Text>
       </TouchableOpacity>
 
-      {/* 길안내 버튼 */}
       <TouchableOpacity
         style={styles.navigateBtn}
         onPress={onNavigate}
@@ -229,9 +200,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 6,
   },
-  // ── 글씨 크기 노인 친화 키움 ──
   summaryDept: {
-    fontSize: 30, // 24 → 30
+    fontSize: 30,
     fontWeight: "700",
     color: "#1976D2",
     flex: 1,
@@ -244,17 +214,17 @@ const styles = StyleSheet.create({
   },
   confidenceText: {
     color: "#1565C0",
-    fontSize: 15, // 13 → 15
+    fontSize: 15,
     fontWeight: "600",
   },
   secondaryDept: {
-    fontSize: 18, // 14 → 18
+    fontSize: 18,
     color: "#1976D2",
     marginBottom: 6,
     fontWeight: "500",
   },
   summaryReason: {
-    fontSize: 20, // 16 → 20
+    fontSize: 20,
     color: "#444",
     lineHeight: 28,
     marginTop: 4,
@@ -262,12 +232,12 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.sm,
-    paddingBottom: Spacing.xxl, // 하단 여백 더 확보 (SOS 버튼 가리지 않게)
+    paddingBottom: 220, // HintBubble + 여백
   },
   card: {
     backgroundColor: "#fff",
     borderRadius: 16,
-    padding: Spacing.lg, // padding 키움
+    padding: Spacing.lg,
     marginBottom: Spacing.md,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
@@ -276,14 +246,14 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   cardName: {
-    fontSize: 24, // 18 → 24
+    fontSize: 24,
     fontWeight: "700",
     color: "#222",
     marginBottom: 10,
     lineHeight: 32,
   },
   cardAddress: {
-    fontSize: 18, // 14 → 18
+    fontSize: 18,
     color: "#444",
     marginBottom: 10,
     lineHeight: 26,
@@ -295,40 +265,35 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cardDistance: {
-    fontSize: 19, // 15 → 19
+    fontSize: 19,
     color: "#444",
     fontWeight: "600",
   },
   cardOpen: {
-    fontSize: 18, // 14 → 18
+    fontSize: 18,
     fontWeight: "600",
   },
   cardTel: {
-    fontSize: 20, // 14 → 20 (전화번호 잘 보이게)
+    fontSize: 20,
     color: "#444",
     fontWeight: "600",
     marginBottom: Spacing.md,
   },
-  // ── 전화 걸기 버튼 (초록) ──
   callBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
-    backgroundColor: "#10B981", // 전화 앱 친화적 초록
-    paddingVertical: 16, // 12 → 16 (노인 친화)
+    backgroundColor: "#10B981",
+    paddingVertical: 16,
     borderRadius: 10,
     marginBottom: 10,
   },
-  callBtnDisabled: {
-    backgroundColor: "#9CA3AF", // 회색
-  },
   callBtnText: {
     color: "#fff",
-    fontSize: 22, // 큰 글씨
+    fontSize: 22,
     fontWeight: "700",
   },
-  // ── 길안내 버튼 (파랑) ──
   navigateBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -340,17 +305,7 @@ const styles = StyleSheet.create({
   },
   navigateBtnText: {
     color: "#fff",
-    fontSize: 22, // 17 → 22
+    fontSize: 22,
     fontWeight: "700",
-  },
-  empty: {
-    padding: Spacing.lg,
-    alignItems: "center",
-  },
-  emptyText: {
-    fontSize: 20, // 16 → 20
-    color: "#666",
-    textAlign: "center",
-    lineHeight: 28,
   },
 });

@@ -4,7 +4,13 @@
 // variant='danger': 빨간 배경 (SOS)
 
 import React from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import {
+  Pressable,
+  StyleSheet,
+  View,
+  ViewStyle,
+  StyleProp,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, {
   useSharedValue,
@@ -30,6 +36,8 @@ interface Props {
   onPress: () => void;
   variant?: CardVariant;
   layout?: CardLayout;
+  /** 외부에서 카드 스타일 override (예: 튜토리얼 강조 테두리) */
+  style?: StyleProp<ViewStyle>;
 }
 
 export function HomeActionCard({
@@ -39,6 +47,7 @@ export function HomeActionCard({
   onPress,
   variant = "default",
   layout = "vertical",
+  style,
 }: Props) {
   const scale = useSharedValue(1);
 
@@ -87,6 +96,7 @@ export function HomeActionCard({
         isHorizontal ? styles.cardHorizontal : styles.cardVertical,
         { backgroundColor: cardBg },
         animatedStyle,
+        style, // 외부 override (튜토리얼 강조 등)
       ]}
     >
       <View

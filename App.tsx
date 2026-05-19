@@ -36,16 +36,22 @@ import SafetyZoneEditScreen from "./src/components/guardian/SafetyZoneEditScreen
 import NotificationsScreen from "./src/screens/guardian/NotificationsScreen";
 import SosScreen from "./src/screens/elderly/SosScreen";
 import SosLocationViewScreen from "./src/screens/guardian/SosLocationViewScreen";
+
+// ─── 튜토리얼 화면 ───
+import TutorialHomeScreen from "./src/screens/tutorial/TutorialHomeScreen";
+import TutorialMedicalChatScreen from "./src/screens/tutorial/TutorialMedicalChatScreen";
+import TutorialHospitalResultScreen from "./src/screens/tutorial/TutorialHospitalResultScreen";
+import TutorialNavigationScreen from "./src/screens/tutorial/TutorialNavigationScreen";
+import TutorialCompleteScreen from "./src/screens/tutorial/TutorialCompleteScreen";
+
+// ─── 설정 화면 ───
+import ElderlySettingsScreen from "./src/screens/elderly/ElderlySettingsScreen";
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
-// 알림 핸들러는 컴포넌트 트리 바깥에서 1회만 설정. (모듈 로드 시 즉시 실행)
 configureNotificationHandler();
 
-// React Query 전역 클라이언트.
-// - staleTime 5분: 그 동안 같은 쿼리 재호출 시 네트워크 안 타고 캐시에서 즉시 반환
-// - retry 1: 네트워크 일시 오류에 한 번만 재시도 (axios 인터셉터가 이미 401 재발급 처리하므로 적게)
-// - refetchOnWindowFocus: 웹 전용 옵션이라 RN에서는 무의미 → false
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -59,7 +65,6 @@ const queryClient = new QueryClient({
   },
 });
 
-// ToastProvider 안쪽에서 useToast() 훅을 호출해 외부 브리지에 등록.
 function ToastBridgeRegister() {
   const toast = useToast();
   useEffect(() => {
@@ -68,8 +73,6 @@ function ToastBridgeRegister() {
   return null;
 }
 
-// Android 알림 채널은 앱 부팅 시 1회 등록 (인증 상태 무관).
-// 채널이 없으면 안드로이드 OS가 푸시를 무음 처리하므로 필수.
 function NotificationChannelInitializer() {
   useEffect(() => {
     registerAndroidNotificationChannel().catch((e) =>
@@ -83,13 +86,8 @@ function AppContent() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isHydrated = useAuthStore((s) => s.isHydrated);
   const role = useAuthStore((s) => s.user?.role);
-  // 콜드 스타트(앱 종료 → 알림 탭으로 실행) 케이스의 마지막 응답.
   const lastNotificationResponse = Notifications.useLastNotificationResponse();
 
-  // 푸시 알림 탭 → 화면 라우팅.
-  // SOS 알림에 한해 보호자 계정에서 SosLocationView로 자동 이동.
-  // 데이터 페이로드는 백엔드 NotificationService.notifySosBroadcast가 실어 보냄
-  // ({ type:"SOS", eventId, wardId, latitude, longitude }).
   useEffect(() => {
     if (!isAuthenticated || role !== "guardian") return;
 
@@ -103,7 +101,6 @@ function AppContent() {
       const eventId = Number(data.eventId);
       if (Number.isNaN(eventId)) return;
 
-      // navigationRef가 ready될 때까지 잠깐 대기 (콜드 스타트는 컨테이너 마운트 전에 fire 가능).
       const tryNavigate = (retry = 0) => {
         if (navigationRef.isReady()) {
           navigationRef.navigate("SosLocationView", { eventId });
@@ -114,17 +111,16 @@ function AppContent() {
       tryNavigate();
     };
 
-    // 백그라운드/포그라운드에서 알림 탭
     const sub =
       Notifications.addNotificationResponseReceivedListener(handleResponse);
 
-    // 콜드 스타트 — 앱 시작 시 마지막 응답이 이미 있으면 즉시 처리
     if (lastNotificationResponse) {
       handleResponse(lastNotificationResponse);
     }
 
     return () => sub.remove();
   }, [isAuthenticated, role, lastNotificationResponse]);
+
   if (!isHydrated) {
     return (
       <View
@@ -165,6 +161,31 @@ function AppContent() {
               component={InvitationListScreen}
             />
             <Stack.Screen name="Sos" component={SosScreen} />
+
+            {/* ─── 설정 화면 ─── */}
+            <Stack.Screen
+              name="ElderlySettings"
+              component={ElderlySettingsScreen}
+            />
+
+            {/* ─── 튜토리얼 화면 ─── */}
+            <Stack.Screen name="TutorialHome" component={TutorialHomeScreen} />
+            <Stack.Screen
+              name="TutorialMedicalChat"
+              component={TutorialMedicalChatScreen}
+            />
+            <Stack.Screen
+              name="TutorialHospitalResult"
+              component={TutorialHospitalResultScreen}
+            />
+            <Stack.Screen
+              name="TutorialNavigation"
+              component={TutorialNavigationScreen}
+            />
+            <Stack.Screen
+              name="TutorialComplete"
+              component={TutorialCompleteScreen}
+            />
           </>
         ) : (
           <>
