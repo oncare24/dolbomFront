@@ -35,7 +35,8 @@ import { useMarkAsRead, useNotifications } from "../../hooks/useNotifications";
 import { Colors, Spacing } from "../../theme";
 import type { NotificationItem } from "../../types/notification";
 import type { RootStackParamList } from "../../types/navigation";
-
+import { Pressable } from "react-native";
+import { haptic } from "../../utils/haptics";
 type Nav = NativeStackNavigationProp<RootStackParamList, "Notifications">;
 
 export default function NotificationsScreen() {
@@ -95,14 +96,35 @@ export default function NotificationsScreen() {
         case "WARD_INVITATION":
           // 보호자는 이 알림을 받지 않음 (피보호자만 받음). 안전 폴백.
           break;
+
+        case "DRUG_ANALYSIS_REFRESH_REQUEST":
+          // 보호자는 이 알림을 받지 않음 (피보호자만 받음). 안전 폴백.
+          break;
       }
     },
     [markAsReadMutation, navigation],
   );
   return (
     <ScreenContainer audience="guardian" paddingTop={0} noPadding>
-      <AppHeader title="알림" audience="guardian" />
-
+      <AppHeader
+        title="알림"
+        audience="guardian"
+        rightElement={
+          <Pressable
+            onPress={() => {
+              haptic.light();
+              navigation.navigate("NotificationPreferences");
+            }}
+            hitSlop={8}
+          >
+            <Ionicons
+              name="settings-outline"
+              size={22}
+              color={Colors.text.primary}
+            />
+          </Pressable>
+        }
+      />
       {isLoading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={Colors.brand.primary} />

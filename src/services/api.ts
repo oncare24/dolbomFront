@@ -32,11 +32,7 @@ type ReissueBody = ApiSuccessBody<{
 
 // 화면에서 catch할 때 쓰는 표준 에러
 export class ApiException extends Error {
-  constructor(
-    public code: string,
-    message: string,
-    public status?: number,
-  ) {
+  constructor(public code: string, message: string, public status?: number) {
     super(message);
     this.name = "ApiException";
   }
@@ -47,7 +43,7 @@ export class ApiException extends Error {
 // ───────────────────────────────────────────────────────
 export const api: AxiosInstance = axios.create({
   baseURL: BASE_URL,
-  timeout: 15000,
+  timeout: 30000,
   headers: {
     "Content-Type": "application/json",
     "ngrok-skip-browser-warning": "true",

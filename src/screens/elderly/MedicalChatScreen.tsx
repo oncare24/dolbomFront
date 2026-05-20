@@ -191,9 +191,7 @@ export default function MedicalChatScreen() {
         backgroundColor={Colors.surface.background}
       />
 
-      <View style={{ paddingTop: insets.top }}>
-        <AppHeader title="병원 찾기" audience="elderly" />
-      </View>
+      <AppHeader title="병원 찾기" audience="elderly" />
 
       <FlatList
         ref={listRef}

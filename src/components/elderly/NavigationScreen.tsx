@@ -398,7 +398,7 @@ const styles = StyleSheet.create({
 
   // 미니맵 25%
   mapContainer: {
-    flex: 0.25,
+    flex: 0.36,
     position: "relative",
     backgroundColor: Colors.gray[100],
   },
@@ -449,9 +449,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
 
-  // 카드 영역 65%
+  // 카드 영역 54%
   cardArea: {
-    flex: 0.65,
+    flex: 0.54,
   },
 
   // 버튼 영역 10%

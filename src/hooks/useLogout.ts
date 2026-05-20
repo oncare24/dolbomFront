@@ -15,6 +15,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { logout as logoutApi } from "../services/authService";
 import { useAuthStore } from "../stores/authStore";
 import { stopBackgroundLocation } from "./useBackgroundLocation";
+import { clearAllMedicationReminders } from "../services/medicationReminderService";
 
 export function useLogout() {
   const queryClient = useQueryClient();
@@ -25,6 +26,7 @@ export function useLogout() {
     // 성공 시 클라이언트 정리
     onSuccess: async () => {
       await stopBackgroundLocation(); // 1) OS 태스크 먼저 종료 (다른 정리보다 우선)
+      await clearAllMedicationReminders(); // 어머니가 로그아웃해도 다음 사용자에게 알림이 안 가도록
       storeLogout(); //                  2) Zustand에서 인증 상태 + 토큰 삭제
       queryClient.clear(); //            3) React Query 캐시 전체 비우기
     },
@@ -32,6 +34,7 @@ export function useLogout() {
     // (이미 만료된 토큰으로 logout 호출 시 401 떨어질 수 있음)
     onError: async () => {
       await stopBackgroundLocation();
+      await clearAllMedicationReminders(); // ← 추가
       storeLogout();
       queryClient.clear();
     },

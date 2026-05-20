@@ -43,6 +43,13 @@ export async function registerAndroidNotificationChannel(): Promise<void> {
     vibrationPattern: [0, 250, 250, 250],
     lightColor: "#3478F6",
   });
+
+  await Notifications.setNotificationChannelAsync("medication", {
+    name: "약 복용 알림",
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 400, 200, 400], // 강한 진동 (시중 약 알람 표준)
+    lightColor: "#FF8A3D",
+  });
 }
 
 // ───────────────────────────────────────────────────────

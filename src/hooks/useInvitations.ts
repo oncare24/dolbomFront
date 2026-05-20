@@ -19,6 +19,7 @@ import {
   type CreateInvitationInput,
 } from "../services/invitationService";
 import type { ReceivedInvitation, SentInvitation } from "../types/invitation";
+import { myGuardiansKeys } from "./useMyGuardians"; // ★ 추가
 
 // ───────────────────────────────────────────────────────
 // Query Keys (Factory)
@@ -104,6 +105,12 @@ export function useAcceptInvitation() {
     mutationFn: (id: number) => acceptInvitation(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: invitationKeys.received() });
+      // ★ 추가: 수락 직후 내 보호자 목록 강제 재조회
+      //   → useMyGuardians가 새 데이터 받음
+      //   → hasGuardian이 true가 됨
+      //   → useBackgroundLocation의 enabled가 true로 바뀜
+      //   → 위치 추적 자동 시작 + 포그라운드 알림 등장
+      qc.invalidateQueries({ queryKey: myGuardiansKeys.all });
     },
   });
 }

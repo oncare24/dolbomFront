@@ -304,12 +304,10 @@ export default function SafetyZoneEditScreen() {
         backgroundColor={Colors.surface.background}
       />
 
-      <View style={{ paddingTop: insets.top }}>
-        <AppHeader
-          title={isEditMode ? "안전구역 수정" : "안전구역 추가"}
-          audience="guardian"
-        />
-      </View>
+      <AppHeader
+        title={isEditMode ? "안전구역 수정" : "안전구역 추가"}
+        audience="guardian"
+      />
 
       {/* 지도: flexShrink: 0 — 키보드 떠도 줄어들지 않음 */}
       <View style={styles.mapSection}>

@@ -17,8 +17,10 @@ import { BACKGROUND_LOCATION_TASK } from "../services/backgroundLocationTask";
 const REPORT_INTERVAL_MS = 1 * 60 * 1000; // 검증용 1분 (발표 후 30분으로 복원)
 export function useBackgroundLocation(enabled: boolean) {
   useEffect(() => {
-    if (!enabled) return;
-
+    if (!enabled) {
+      void stopBackgroundLocation();
+      return;
+    }
     let cancelled = false;
 
     (async () => {

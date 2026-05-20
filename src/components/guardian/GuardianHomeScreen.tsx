@@ -1,8 +1,11 @@
+// src/components/guardian/GuardianHomeScreen.tsx
+
 // 보호자 홈 화면.
 // 인사말+알림종 → [대기 중인 초대 섹션] → 피보호자 카드 리스트 → 초대 카드 → 로그아웃.
 //
 // 9-F: MOCK_PROTEGES 제거 → useMyWards 실데이터.
 // Pull-to-refresh: ward 목록 + 보낸 초대 둘 다 동시 갱신.
+// 피보호자 카드 → ProtegeDetail (대시보드 분기).
 
 import React, { useCallback, useState } from "react";
 import {
@@ -81,7 +84,7 @@ export default function GuardianHomeScreen() {
     navigation.navigate("Notifications");
   };
   const handleProtegePress = (protege: Protege) => {
-    navigation.navigate("SafetyZoneList", { protegeId: protege.id });
+    navigation.navigate("ProtegeDetail", { protegeId: protege.id });
   };
 
   const handleInvitePress = () => {

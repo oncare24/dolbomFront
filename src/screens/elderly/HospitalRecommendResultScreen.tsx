@@ -15,7 +15,6 @@ import {
   View,
   StatusBar,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
@@ -33,7 +32,6 @@ type Nav = NativeStackNavigationProp<
 >;
 
 export default function HospitalRecommendResultScreen() {
-  const insets = useSafeAreaInsets();
   const route = useRoute<ResultRouteProp>();
   const navigation = useNavigation<Nav>();
 
@@ -72,9 +70,7 @@ export default function HospitalRecommendResultScreen() {
         backgroundColor={Colors.surface.background}
       />
 
-      <View style={{ paddingTop: insets.top }}>
-        <AppHeader title="추천 병원" audience="elderly" />
-      </View>
+      <AppHeader title="추천 병원" audience="elderly" />
 
       {/* 진료과 + LLM 분석 정보 */}
       <View style={styles.summary}>

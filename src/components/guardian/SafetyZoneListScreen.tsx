@@ -159,9 +159,7 @@ export default function SafetyZoneListScreen() {
         backgroundColor={Colors.surface.background}
       />
 
-      <View style={{ paddingTop: insets.top }}>
-        <AppHeader title={`${display.name}님 안전구역`} audience="guardian" />
-      </View>
+      <AppHeader title={`${display.name}님 안전구역`} audience="guardian" />
 
       <ScrollView
         style={styles.scroll}
