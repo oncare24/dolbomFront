@@ -39,6 +39,17 @@ import SafetyZoneEditScreen from "./src/components/guardian/SafetyZoneEditScreen
 import NotificationsScreen from "./src/screens/guardian/NotificationsScreen";
 import SosScreen from "./src/screens/elderly/SosScreen";
 import SosLocationViewScreen from "./src/screens/guardian/SosLocationViewScreen";
+
+// ─── 튜토리얼 화면 ───
+import TutorialHomeScreen from "./src/screens/tutorial/TutorialHomeScreen";
+import TutorialMedicalChatScreen from "./src/screens/tutorial/TutorialMedicalChatScreen";
+import TutorialHospitalResultScreen from "./src/screens/tutorial/TutorialHospitalResultScreen";
+import TutorialNavigationScreen from "./src/screens/tutorial/TutorialNavigationScreen";
+import TutorialCompleteScreen from "./src/screens/tutorial/TutorialCompleteScreen";
+
+// ─── 설정 화면 ───
+import ElderlySettingsScreen from "./src/screens/elderly/ElderlySettingsScreen";
+
 import MedicationTodayScreen from "./src/screens/elderly/MedicationTodayScreen";
 import MedicationListScreen from "./src/screens/shared/MedicationListScreen";
 import MedicationEditScreen from "./src/screens/shared/MedicationEditScreen";
@@ -200,6 +211,31 @@ function AppContent() {
               component={InvitationListScreen}
             />
             <Stack.Screen name="Sos" component={SosScreen} />
+
+            {/* ─── 설정 화면 ─── */}
+            <Stack.Screen
+              name="ElderlySettings"
+              component={ElderlySettingsScreen}
+            />
+
+            {/* ─── 튜토리얼 화면 ─── */}
+            <Stack.Screen name="TutorialHome" component={TutorialHomeScreen} />
+            <Stack.Screen
+              name="TutorialMedicalChat"
+              component={TutorialMedicalChatScreen}
+            />
+            <Stack.Screen
+              name="TutorialHospitalResult"
+              component={TutorialHospitalResultScreen}
+            />
+            <Stack.Screen
+              name="TutorialNavigation"
+              component={TutorialNavigationScreen}
+            />
+            <Stack.Screen
+              name="TutorialComplete"
+              component={TutorialCompleteScreen}
+            />
             <Stack.Screen
               name="MedicationToday"
               component={MedicationTodayScreen}

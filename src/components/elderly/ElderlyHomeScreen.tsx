@@ -1,5 +1,7 @@
 // 피보호자 홈 화면.
-// 인사말 → [받은 초대 배너] → SOS+병원+약 카드 → 복약 상태(실데이터) → 복약 분석.
+// 인사말 → [받은 초대 배너] → SOS+병원+약 카드 → 복약 상태 → 안전구역 상태.
+// 9-E: ReceivedInvitationsBanner 통합 + ReceivedInvitations 라우트로 이동.
+// Pull-to-refresh: 받은 초대 갱신 (복약/안전구역은 Step 11+에서 실연동).
 
 import { StatusBar, StyleSheet, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
@@ -28,6 +30,7 @@ import type { ElderlyHomeAction } from "../../types/elderlyHome";
 import type { MedicationStatus } from "../../types/elderlyHome";
 import type { RootStackParamList } from "../../types/navigation";
 import { FloatingSosButton } from "../../components/elderly/FloatingSosButton";
+
 import { HomeMedicationAnalysisCard } from "../../components/elderly/HomeMedicationAnalysisCard";
 import { useMyGuardians } from "../../hooks/useMyGuardians";
 import { useSelfMedicationAnalysis } from "../../hooks/useDrugSafety";
@@ -111,10 +114,7 @@ export default function ElderlyHomeScreen() {
   };
 
   const handleSettings = () => {
-    toast.show({
-      message: "설정 화면으로 이동 (구현 예정)",
-      variant: "info",
-    });
+    navigation.navigate("ElderlySettings");
   };
 
   const handleMedicationDetail = () => handleAction("medication");
