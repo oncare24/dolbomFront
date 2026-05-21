@@ -146,6 +146,7 @@ export function useCreateMedicationSchedule() {
 // src/hooks/useMedications.ts — useUpdateMedicationSchedule 함수만 교체
 
 /** 일정 수정 — Optimistic: 캐시 내 해당 일정 즉시 교체. */
+/** 일정 수정 — Optimistic: 캐시 내 해당 일정 즉시 교체 + OS 알람 재등록. */
 export function useUpdateMedicationSchedule() {
   const qc = useQueryClient();
   return useMutation({
@@ -206,6 +207,21 @@ export function useUpdateMedicationSchedule() {
       });
       if (context?.previousDetail) {
         qc.setQueryData(context.detailKey, context.previousDetail);
+      }
+    },
+
+    onSuccess: (savedSchedule) => {
+      // 시각/요일/active 변경 시 OS 알람 재등록.
+      // scheduleLocalRemindersForMedication이 내부에서 기존 매핑 cancel 후 재등록 보장.
+      // active: false면 register는 no-op이라 별도 cancel 필요.
+      if (savedSchedule.active) {
+        scheduleLocalRemindersForMedication(savedSchedule).catch((e) =>
+          console.warn("[MED-LOCAL] update-sync failed:", e),
+        );
+      } else {
+        cancelLocalRemindersForMedication(savedSchedule.id).catch((e) =>
+          console.warn("[MED-LOCAL] update-cancel failed:", e),
+        );
       }
     },
 

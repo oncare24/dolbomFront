@@ -1,8 +1,11 @@
 // ============================================================
-// NavigationScreen — 카드 우선 시니어 길안내 화면
+// NavigationScreen — 지도 풀스크린 + 오버레이 안내 (C안)
 // ============================================================
-// 비율: 미니맵 25% / 카드 65% / 버튼 10%
-// 카드 자동 전환: 임계값 + GPS 필터 + 거리 증가(통과) 판정
+// 학술 근거: Scientific Reports 2025.12 (Nature, 50-69세 N=40)
+// - 지도 유지 (익숙한 패러다임) + 음성 안내 (인지 부담 감소)
+// - 카메라 follow → 시각적 위치 파악 부담 감소
+// - 경로 이탈 3초 지속 시 자동 재탐색
+// - 진행방향 화살표 마커 (heading 기반)
 
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
@@ -10,7 +13,6 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  Alert,
   StatusBar,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -39,23 +41,30 @@ import { shouldShowMarker } from "../../utils/markerFilter";
 import { Colors, Spacing, Radius, Touch } from "../../theme";
 
 // ── 상수 ──
-const CARD_ADVANCE_THRESHOLD_M = 35; // GPS 오차 대비 (20 → 35)
+const CARD_ADVANCE_THRESHOLD_M = 35; // 카드 전환 임계값
+const NEAR_POINT_FOR_PASS_M = 50; // "근접" 판정 (지점 통과 보조)
 const DISTANCE_INCREASE_TOLERANCE_M = 10; // 거리 증가 = 지점 통과
-const OFF_ROUTE_THRESHOLD_M = 50;
-const GPS_ACCURACY_THRESHOLD_M = 100; // 부정확한 GPS 무시
-const GPS_INTERVAL_MS = 3000;
-const GPS_DISTANCE_FILTER_M = 5;
+const OFF_ROUTE_THRESHOLD_M = 50; // 경로 이탈 거리
+const OFF_ROUTE_REROUTE_DEBOUNCE_MS = 3000; // 3초 지속 시 재탐색
+const GPS_ACCURACY_THRESHOLD_M = 100;
+const GPS_INTERVAL_MS = 2000;
+const GPS_DISTANCE_FILTER_M = 3;
 const TTS_LANGUAGE = "ko-KR";
 const TTS_RATE = 0.9;
+const MAP_ZOOM = 17;
+const CAMERA_DURATION_MS = 300;
+const ARRIVAL_END_DELAY_MS = 3000;
 
 interface Props {
   tmapResponse: TmapResponse;
   onNavigationEnd?: () => void;
+  onReroute?: (current: { latitude: number; longitude: number }) => void;
 }
 
 export default function NavigationScreen({
   tmapResponse,
   onNavigationEnd,
+  onReroute,
 }: Props) {
   const insets = useSafeAreaInsets();
   const [route, setRoute] = useState<NavigationRoute | null>(null);
@@ -64,21 +73,25 @@ export default function NavigationScreen({
     latitude: number;
     longitude: number;
   } | null>(null);
+  const [currentHeading, setCurrentHeading] = useState<number>(0);
   const [distanceToNext, setDistanceToNext] = useState(0);
   const [isOffRoute, setIsOffRoute] = useState(false);
 
   const cardIndexRef = useRef(0);
   const routeRef = useRef<NavigationRoute | null>(null);
   const onNavigationEndRef = useRef(onNavigationEnd);
+  const onRerouteRef = useRef(onReroute);
   const locationSubRef = useRef<Location.LocationSubscription | null>(null);
   const mapRef = useRef<any>(null);
   const prevDistRef = useRef<number>(Infinity);
+  const offRouteSinceRef = useRef<number | null>(null);
 
   useEffect(() => {
     onNavigationEndRef.current = onNavigationEnd;
-  }, [onNavigationEnd]);
+    onRerouteRef.current = onReroute;
+  }, [onNavigationEnd, onReroute]);
 
-  // ── Tmap 응답 파싱 ──
+  // ── Tmap 응답 파싱 (재탐색 시에도 호출됨) ──
   useEffect(() => {
     const parsed = parseTmapResponse(tmapResponse);
     routeRef.current = parsed;
@@ -86,6 +99,8 @@ export default function NavigationScreen({
     cardIndexRef.current = 0;
     setCurrentCardIndex(0);
     prevDistRef.current = Infinity;
+    offRouteSinceRef.current = null;
+    setIsOffRoute(false);
 
     if (parsed.cards.length > 0) {
       speakCard(parsed.cards[0]);
@@ -99,10 +114,8 @@ export default function NavigationScreen({
     async function startGpsTracking() {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert(
-          "위치 권한 필요",
-          "길안내를 위해 위치 권한을 허용해주세요.",
-        );
+        // 권한 없으면 길안내 자체 불가 → 화면 종료
+        onNavigationEndRef.current?.();
         return;
       }
 
@@ -129,12 +142,13 @@ export default function NavigationScreen({
     };
   }, []);
 
-  // ── GPS 업데이트 → 카드 전환 판정 ──
+  // ── GPS 업데이트 → 카메라 추적 + 카드 전환 + 경로 이탈 ──
   const handleLocationUpdate = useCallback(
     (coords: {
       latitude: number;
       longitude: number;
       accuracy: number | null;
+      heading: number | null;
     }) => {
       // 1. GPS 정확도 필터링
       if (
@@ -144,13 +158,26 @@ export default function NavigationScreen({
         return;
       }
 
-      const route = routeRef.current;
-      if (!route) return;
+      const r = routeRef.current;
+      if (!r || r.cards.length === 0) return;
 
       const { latitude, longitude } = coords;
       setCurrentLocation({ latitude, longitude });
 
-      const cards = route.cards;
+      // heading: -1이면 정지/측정 불가 → 이전 값 유지
+      if (coords.heading != null && coords.heading >= 0) {
+        setCurrentHeading(coords.heading);
+      }
+
+      // 카메라 추적 (네이버지도 follow 모드)
+      mapRef.current?.animateCameraTo({
+        latitude,
+        longitude,
+        zoom: MAP_ZOOM,
+        duration: CAMERA_DURATION_MS,
+      });
+
+      const cards = r.cards;
       const idx = cardIndexRef.current;
       if (idx >= cards.length) return;
 
@@ -169,7 +196,7 @@ export default function NavigationScreen({
       const prevDist = prevDistRef.current;
       const arrived = dist < CARD_ADVANCE_THRESHOLD_M;
       const passed =
-        prevDist < OFF_ROUTE_THRESHOLD_M &&
+        prevDist < NEAR_POINT_FOR_PASS_M &&
         dist > prevDist + DISTANCE_INCREASE_TOLERANCE_M;
 
       if ((arrived || passed) && idx + 1 < cards.length) {
@@ -178,28 +205,42 @@ export default function NavigationScreen({
         setCurrentCardIndex(nextIdx);
         prevDistRef.current = Infinity;
 
-        console.log(`[Nav] 카드 전환: ${idx} → ${nextIdx}`);
         speakCard(cards[nextIdx]);
 
         if (cards[nextIdx].pointType === "end") {
-          setTimeout(() => onNavigationEndRef.current?.(), 3000);
+          setTimeout(
+            () => onNavigationEndRef.current?.(),
+            ARRIVAL_END_DELAY_MS,
+          );
         }
-        moveCamera(
-          cards[nextIdx].point.latitude,
-          cards[nextIdx].point.longitude,
-        );
       } else {
         prevDistRef.current = dist;
       }
 
-      // 3. 경로 이탈 감지
+      // 3. 경로 이탈 감지 + 디바운스 재탐색
       if (currentCard.pathCoords.length > 0) {
         const pathDist = distanceToPath(
           latitude,
           longitude,
           currentCard.pathCoords,
         );
-        setIsOffRoute(pathDist > OFF_ROUTE_THRESHOLD_M);
+        const off = pathDist > OFF_ROUTE_THRESHOLD_M;
+
+        if (off) {
+          setIsOffRoute(true);
+          if (offRouteSinceRef.current === null) {
+            offRouteSinceRef.current = Date.now();
+          } else if (
+            Date.now() - offRouteSinceRef.current >
+            OFF_ROUTE_REROUTE_DEBOUNCE_MS
+          ) {
+            offRouteSinceRef.current = null;
+            onRerouteRef.current?.({ latitude, longitude });
+          }
+        } else {
+          setIsOffRoute(false);
+          offRouteSinceRef.current = null;
+        }
       }
     },
     [],
@@ -210,15 +251,6 @@ export default function NavigationScreen({
     Speech.speak(card.description || card.turnLabel, {
       language: TTS_LANGUAGE,
       rate: TTS_RATE,
-    });
-  }
-
-  function moveCamera(latitude: number, longitude: number) {
-    mapRef.current?.animateCameraTo({
-      latitude,
-      longitude,
-      zoom: 17,
-      duration: 500,
     });
   }
 
@@ -250,6 +282,14 @@ export default function NavigationScreen({
     );
   }
 
+  if (route.cards.length === 0) {
+    return (
+      <View style={styles.loading}>
+        <Text style={styles.loadingText}>경로 정보를 받을 수 없어요</Text>
+      </View>
+    );
+  }
+
   const currentCard = route.cards[currentCardIndex];
   const nextCard =
     currentCardIndex + 1 < route.cards.length
@@ -257,108 +297,116 @@ export default function NavigationScreen({
       : null;
   const passedCoords = getPassedCoords();
 
+  // 도착 예상 시각 ("오후 1시 32분 도착")
+  const arrivalDate = new Date(Date.now() + route.totalDuration * 1000);
+  const ah = arrivalDate.getHours();
+  const am = arrivalDate.getMinutes();
+  const period = ah < 12 ? "오전" : "오후";
+  const displayH = ah === 0 ? 12 : ah > 12 ? ah - 12 : ah;
+  const arrivalText = `${period} ${displayH}시 ${am}분 도착`;
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       <StatusBar
         barStyle="dark-content"
-        backgroundColor={Colors.surface.background}
+        backgroundColor="transparent"
+        translucent
       />
 
-      {/* ── 미니맵 (25%) ── */}
-      <View style={styles.mapContainer}>
-        <NaverMapView
-          ref={mapRef}
-          style={StyleSheet.absoluteFill}
-          initialCamera={{
-            latitude: route.cards[0]?.point.latitude ?? 36.1071,
-            longitude: route.cards[0]?.point.longitude ?? 128.3516,
-            zoom: 17,
-          }}
-          isShowLocationButton={false}
-          isShowCompass={false}
-          isShowScaleBar={false}
-          isRotateGesturesEnabled={false}
-          minZoom={14}
-          maxZoom={19}
-        >
-          {/* 전체 경로 */}
-          {route.fullPath.length > 1 && (
-            <NaverMapPolylineOverlay
-              coords={route.fullPath}
-              color={Colors.brand.primary}
-              width={8}
-            />
-          )}
-          {/* 지나간 구간 */}
-          {passedCoords.length > 1 && (
-            <NaverMapPolylineOverlay
-              coords={passedCoords}
-              color={Colors.gray[400]}
-              width={8}
-            />
-          )}
-          {/* 안내지점 마커 — 캡션 제거, 끝이 좌표 가리킴 */}
-          {route.cards.filter(shouldShowMarker).map((card) => (
-            <NaverMapMarkerOverlay
-              key={`point-${card.index}`}
-              latitude={card.point.latitude}
-              longitude={card.point.longitude}
-              image={{ symbol: "gray" }}
-              width={36}
-              height={48}
-              anchor={{ x: 0.5, y: 1 }}
-            />
-          ))}
-          {/* 현재 위치 마커 — key 고정으로 깜빡거림 방지 */}
-          {currentLocation && (
-            <NaverMapMarkerOverlay
-              key="current-location"
-              latitude={currentLocation.latitude}
-              longitude={currentLocation.longitude}
-              image={{ symbol: "red" }}
-              width={32}
-              height={42}
-              anchor={{ x: 0.5, y: 1 }}
-            />
-          )}
-        </NaverMapView>
+      {/* ── 지도 풀스크린 ── */}
+      <NaverMapView
+        ref={mapRef}
+        style={StyleSheet.absoluteFill}
+        initialCamera={{
+          latitude: route.cards[0].point.latitude,
+          longitude: route.cards[0].point.longitude,
+          zoom: MAP_ZOOM,
+        }}
+        isShowLocationButton={false}
+        isShowCompass={false}
+        isShowScaleBar={false}
+        isRotateGesturesEnabled={false}
+        minZoom={14}
+        maxZoom={19}
+      >
+        {/* 전체 경로 */}
+        {route.fullPath.length > 1 && (
+          <NaverMapPolylineOverlay
+            coords={route.fullPath}
+            color={Colors.brand.primary}
+            width={10}
+          />
+        )}
+        {/* 지나간 구간 */}
+        {passedCoords.length > 1 && (
+          <NaverMapPolylineOverlay
+            coords={passedCoords}
+            color={Colors.gray[400]}
+            width={10}
+          />
+        )}
+        {/* 안내지점 마커 */}
+        {route.cards.filter(shouldShowMarker).map((card) => (
+          <NaverMapMarkerOverlay
+            key={`point-${card.index}`}
+            latitude={card.point.latitude}
+            longitude={card.point.longitude}
+            image={{ symbol: "gray" }}
+            width={32}
+            height={42}
+            anchor={{ x: 0.5, y: 1 }}
+          />
+        ))}
+        {/* 현재 위치 — 진행방향 화살표 */}
+        {currentLocation && (
+          <NaverMapMarkerOverlay
+            key="current-location"
+            latitude={currentLocation.latitude}
+            longitude={currentLocation.longitude}
+            angle={currentHeading}
+            width={48}
+            height={48}
+            anchor={{ x: 0.5, y: 0.5 }}
+          >
+            <View collapsable={false} style={styles.locationMarker}>
+              <Text style={styles.locationMarkerArrow}>▲</Text>
+            </View>
+          </NaverMapMarkerOverlay>
+        )}
+      </NaverMapView>
 
-        {/* 상단 정보 바 */}
-        <View style={styles.topBar}>
-          <Text style={styles.topBarText}>
-            {currentCardIndex + 1} / {route.cards.length} 구간
-          </Text>
-          <Text style={styles.topBarSub}>
+      {/* ── 상단 오버레이: 안내 카드 + 도착 정보 ── */}
+      <View
+        style={[styles.topOverlay, { paddingTop: insets.top + Spacing.sm }]}
+        pointerEvents="box-none"
+      >
+        <NavigationCardUI
+          currentCard={currentCard}
+          nextCard={nextCard}
+          distanceToNext={distanceToNext}
+        />
+
+        <View style={styles.arrivalChip}>
+          <Text style={styles.arrivalText}>
             {formatDistance(route.totalDistance)} ·{" "}
-            {formatDuration(route.totalDuration)}
+            {formatDuration(route.totalDuration)} · {arrivalText}
           </Text>
         </View>
 
-        {/* 경로 이탈 경고 */}
         {isOffRoute && (
-          <View style={styles.offRouteWarning}>
-            <Text style={styles.offRouteText}>경로에서 벗어났어요</Text>
+          <View style={styles.offRouteBanner}>
+            <Text style={styles.offRouteText}>경로를 다시 찾고 있어요</Text>
           </View>
         )}
       </View>
 
-      {/* ── 카드 영역 (65%) ── */}
-      <View style={styles.cardArea}>
-        {currentCard && (
-          <NavigationCardUI
-            currentCard={currentCard}
-            nextCard={nextCard}
-            distanceToNext={distanceToNext}
-          />
-        )}
-      </View>
-
-      {/* ── 버튼 영역 (10%) ── */}
+      {/* ── 하단 오버레이: 버튼 ── */}
       <View
         style={[
-          styles.buttonRow,
+          styles.bottomOverlay,
           { paddingBottom: insets.bottom + Spacing.sm },
         ]}
+        pointerEvents="box-none"
       >
         <TouchableOpacity
           style={[styles.button, styles.replayButton]}
@@ -372,7 +420,7 @@ export default function NavigationScreen({
           onPress={handleClose}
           activeOpacity={0.7}
         >
-          <Text style={styles.closeText}>안내 닫기</Text>
+          <Text style={styles.closeText}>안내 종료</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -396,78 +444,92 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
 
-  // 미니맵 25%
-  mapContainer: {
-    flex: 0.36,
-    position: "relative",
-    backgroundColor: Colors.gray[100],
+  // 사용자 위치 마커
+  locationMarker: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.brand.primary,
+    borderWidth: 4,
+    borderColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
-  topBar: {
+  locationMarkerArrow: {
+    fontSize: 18,
+    color: "#FFFFFF",
+    fontWeight: "900",
+    lineHeight: 20,
+  },
+
+  // 상단 오버레이
+  topOverlay: {
     position: "absolute",
-    top: Spacing.xs,
-    left: Spacing.md,
-    right: Spacing.md,
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: Spacing.md,
+    gap: Spacing.xs,
+  },
+  arrivalChip: {
+    alignSelf: "center",
     backgroundColor: Colors.surface.card,
-    borderRadius: Radius.md,
+    borderRadius: 999,
     paddingVertical: Spacing.xs,
     paddingHorizontal: Spacing.md,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    elevation: 2,
+    elevation: 3,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowRadius: 3,
   },
-  topBarText: {
-    fontSize: 16,
+  arrivalText: {
+    fontSize: 14,
     fontWeight: "700",
     color: Colors.text.primary,
     letterSpacing: 0.2,
   },
-  topBarSub: {
-    fontSize: 14,
-    color: Colors.text.secondary,
-    letterSpacing: 0.2,
-  },
-  offRouteWarning: {
-    position: "absolute",
-    bottom: Spacing.xs,
-    left: Spacing.md,
-    right: Spacing.md,
+  offRouteBanner: {
+    alignSelf: "center",
     backgroundColor: Colors.semantic.danger,
     borderRadius: Radius.md,
     paddingVertical: Spacing.xs,
     paddingHorizontal: Spacing.md,
-    alignItems: "center",
+    elevation: 4,
   },
   offRouteText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "700",
     color: Colors.text.inverse,
     letterSpacing: 0.2,
   },
 
-  // 카드 영역 54%
-  cardArea: {
-    flex: 0.54,
-  },
-
-  // 버튼 영역 10%
-  buttonRow: {
-    flex: 0.1,
+  // 하단 오버레이
+  bottomOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: "row",
     paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.sm,
     gap: Spacing.sm,
   },
   button: {
     flex: 1,
-    minHeight: Touch.senior, // 72dp
+    minHeight: Touch.senior,
     borderRadius: Radius.lg,
     justifyContent: "center",
     alignItems: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
   },
   replayButton: {
     backgroundColor: Colors.surface.card,
@@ -481,12 +543,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   closeButton: {
-    backgroundColor: Colors.gray[300],
+    backgroundColor: Colors.gray[700],
   },
   closeText: {
     fontSize: 18,
     fontWeight: "700",
-    color: Colors.text.primary,
+    color: Colors.text.inverse,
     letterSpacing: 0.2,
   },
 });

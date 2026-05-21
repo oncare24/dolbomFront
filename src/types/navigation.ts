@@ -13,6 +13,7 @@ export type RootStackParamList = {
   ReceivedInvitations: undefined;
   Sos: undefined;
   MedicationToday: undefined;
+  MedicationAlarm: { scheduleId: number; medicationName: string };
 
   /** LLM 문진 결과 (병원 카드 리스트). MedicalChat에서 done=true 시 자동 이동. */
   HospitalRecommendResult: { result: RecommendResponse };
@@ -46,6 +47,7 @@ export type RootStackParamList = {
   MedicationAnalysisForm: undefined;
   MedicationAnalysisWaiting: undefined;
   MedicationAnalysisResult: undefined;
+  PrescriptionList: undefined;
 
   // ─── 튜토리얼 화면 (mock 데이터로 시연, 실제 API 호출 없음) ───
   TutorialHome: undefined;

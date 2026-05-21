@@ -1,12 +1,12 @@
-// front/src/screens/auth/SignupScreen.tsx  (변경 부분: STEP_TITLES, defaultValues, signup 호출)
 import React, { useState, useCallback, useEffect } from "react";
 import { StyleSheet, View, BackHandler, Alert } from "react-native";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
-import { ScreenContainer } from "../../components/common/Layout";
 import { AppHeader } from "../../components/common/Header";
 import { AppText } from "../../components/common/Text";
 import { SignupProgress } from "../../components/auth/SignupProgress";
@@ -15,7 +15,7 @@ import { SignupStepProfile } from "../../components/auth/SignupStepProfile";
 import { SignupStepPassword } from "../../components/auth/SignupStepPassword";
 import { SignupStepDone } from "../../components/auth/SignupStepDone";
 import { signupSchema, SignupFormValues } from "../../schemas/signupSchema";
-import { Spacing } from "../../theme";
+import { Colors, Spacing } from "../../theme";
 import type { RootStackParamList } from "../../types/navigation";
 import { signup, login as loginApi } from "../../services/authService";
 import { getMe } from "../../services/userService";
@@ -37,6 +37,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList, "Signup">;
 export default function SignupScreen() {
   const navigation = useNavigation<Nav>();
   const setLogin = useAuthStore((s) => s.login);
+  const insets = useSafeAreaInsets();
 
   const [step, setStep] = useState<Step>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -89,7 +90,6 @@ export default function SignupScreen() {
         password: values.password,
         name: values.name,
         role: values.role,
-        // ELDER 만 실제 값 전송 — GUARDIAN 은 백엔드에서 null 허용
         age:
           values.role === "elderly" && values.age
             ? Number(values.age)
@@ -140,21 +140,28 @@ export default function SignupScreen() {
   }, [methods, setLogin, navigation]);
 
   return (
-    <ScreenContainer audience="elderly" scrollable={false}>
+    <View style={styles.root}>
       <AppHeader title="회원가입" showBack={step !== 4} onBackPress={goBack} />
 
       {step !== 4 && (
         <SignupProgress currentStep={step} totalSteps={TOTAL_INPUT_STEPS} />
       )}
 
-      <View style={styles.titleWrap}>
-        <AppText variant="h1" color="primary">
-          {STEP_TITLES[step]}
-        </AppText>
-      </View>
-
       <FormProvider {...methods}>
-        <View style={styles.stepWrap}>
+        <KeyboardAwareScrollView
+          style={styles.scroll}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: Spacing.xxl + insets.bottom },
+          ]}
+          keyboardShouldPersistTaps="always"
+          showsVerticalScrollIndicator={false}
+          bottomOffset={Spacing.lg}
+        >
+          <AppText variant="h1" color="primary" style={styles.title}>
+            {STEP_TITLES[step]}
+          </AppText>
+
           {step === 1 && <SignupStepRole onNext={goNext} />}
           {step === 2 && <SignupStepProfile onNext={goNext} />}
           {step === 3 && (
@@ -169,20 +176,26 @@ export default function SignupScreen() {
               onStart={handleStart}
             />
           )}
-        </View>
+        </KeyboardAwareScrollView>
       </FormProvider>
-    </ScreenContainer>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleWrap: {
+  root: {
+    flex: 1,
+    backgroundColor: Colors.surface.background,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
-    paddingBottom: Spacing.lg,
   },
-  stepWrap: {
-    flex: 1,
-    paddingHorizontal: Spacing.lg,
+  title: {
+    marginBottom: Spacing.lg,
   },
 });

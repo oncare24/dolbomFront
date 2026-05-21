@@ -32,8 +32,8 @@ export function HomeActionGrid({ onActionPress }: Props) {
         />
         <HomeActionCard
           icon="fitness"
-          title="약 챙기기"
-          description="오늘 복용 시간"
+          title="복약 일정"
+          description="약 추가와 일정"
           onPress={() => onActionPress("medication")}
         />
       </View>

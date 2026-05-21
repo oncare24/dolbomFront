@@ -39,6 +39,7 @@ import SafetyZoneEditScreen from "./src/components/guardian/SafetyZoneEditScreen
 import NotificationsScreen from "./src/screens/guardian/NotificationsScreen";
 import SosScreen from "./src/screens/elderly/SosScreen";
 import SosLocationViewScreen from "./src/screens/guardian/SosLocationViewScreen";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 // ─── 튜토리얼 화면 ───
 import TutorialHomeScreen from "./src/screens/tutorial/TutorialHomeScreen";
@@ -59,7 +60,10 @@ import MedicationAnalysisWaitingScreen from "./src/screens/elderly/MedicationAna
 import MedicationAnalysisResultScreen from "./src/screens/elderly/MedicationAnalysisResultScreen";
 import MedicationAnalysisDetailScreen from "./src/screens/guardian/MedicationAnalysisDetailScreen";
 import NotificationPreferencesScreen from "./src/screens/guardian/NotificationPreferencesScreen";
+import PrescriptionListScreen from "./src/screens/elderly/PrescriptionListScreen";
 import { useMedicationReminderSync } from "./src/hooks/useMedicationReminderSync";
+import notifee, { EventType } from "react-native-notify-kit";
+import MedicationAlarmScreen from "./src/screens/elderly/MedicationAlarmScreen";
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
@@ -102,22 +106,49 @@ function AppContent() {
   const role = useAuthStore((s) => s.user?.role);
   const lastNotificationResponse = Notifications.useLastNotificationResponse();
 
+  // 피보호자 시점 알림 클릭 라우팅
   useEffect(() => {
-    if (!isAuthenticated || role !== "guardian") return;
+    if (!isAuthenticated || role !== "elderly") return;
 
-    const handleResponse = (response: Notifications.NotificationResponse) => {
-      const data = response.notification.request.content.data as
-        | { type?: string; eventId?: string }
+    // notifee 이벤트 (medication 알람 — 풀스크린 진입)
+    const unsubNotifee = notifee.onForegroundEvent(({ type, detail }) => {
+      const data = detail.notification?.data as
+        | { type?: string; scheduleId?: string; medicationName?: string }
         | undefined;
 
-      if (data?.type !== "SOS" || !data.eventId) return;
+      if (data?.type !== "MEDICATION_REMINDER") return;
+      if (type !== EventType.DELIVERED && type !== EventType.PRESS) return;
+      if (!data.scheduleId || !data.medicationName) return;
 
-      const eventId = Number(data.eventId);
-      if (Number.isNaN(eventId)) return;
+      const scheduleId = Number(data.scheduleId);
+      if (Number.isNaN(scheduleId)) return;
 
       const tryNavigate = (retry = 0) => {
         if (navigationRef.isReady()) {
-          navigationRef.navigate("SosLocationView", { eventId });
+          navigationRef.navigate("MedicationAlarm", {
+            scheduleId,
+            medicationName: data.medicationName!,
+          });
+        } else if (retry < 10) {
+          setTimeout(() => tryNavigate(retry + 1), 100);
+        }
+      };
+      tryNavigate();
+    });
+
+    // expo-notifications 이벤트 (DRUG_ANALYSIS_REFRESH_REQUEST 등 기존 알림)
+    const handleExpoResponse = (
+      response: Notifications.NotificationResponse,
+    ) => {
+      const data = response.notification.request.content.data as
+        | { type?: string }
+        | undefined;
+
+      if (data?.type !== "DRUG_ANALYSIS_REFRESH_REQUEST") return;
+
+      const tryNavigate = (retry = 0) => {
+        if (navigationRef.isReady()) {
+          navigationRef.navigate("MedicationAnalysisIntro");
         } else if (retry < 10) {
           setTimeout(() => tryNavigate(retry + 1), 100);
         }
@@ -125,14 +156,41 @@ function AppContent() {
       tryNavigate();
     };
 
-    const sub =
-      Notifications.addNotificationResponseReceivedListener(handleResponse);
+    const subExpo =
+      Notifications.addNotificationResponseReceivedListener(handleExpoResponse);
 
     if (lastNotificationResponse) {
-      handleResponse(lastNotificationResponse);
+      handleExpoResponse(lastNotificationResponse);
     }
 
-    return () => sub.remove();
+    // 앱이 알람으로 시작된 경우 (cold start)
+    notifee.getInitialNotification().then((initial) => {
+      if (!initial) return;
+      const data = initial.notification.data as
+        | { type?: string; scheduleId?: string; medicationName?: string }
+        | undefined;
+      if (data?.type !== "MEDICATION_REMINDER") return;
+      if (!data.scheduleId || !data.medicationName) return;
+      const scheduleId = Number(data.scheduleId);
+      if (Number.isNaN(scheduleId)) return;
+
+      const tryNavigate = (retry = 0) => {
+        if (navigationRef.isReady()) {
+          navigationRef.navigate("MedicationAlarm", {
+            scheduleId,
+            medicationName: data.medicationName!,
+          });
+        } else if (retry < 10) {
+          setTimeout(() => tryNavigate(retry + 1), 100);
+        }
+      };
+      tryNavigate();
+    });
+
+    return () => {
+      unsubNotifee();
+      subExpo.remove();
+    };
   }, [isAuthenticated, role, lastNotificationResponse]);
 
   useMedicationReminderSync();
@@ -268,6 +326,16 @@ function AppContent() {
               component={MedicationAnalysisResultScreen}
               options={{ headerShown: false }}
             />
+            <Stack.Screen
+              name="PrescriptionList"
+              component={PrescriptionListScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="MedicationAlarm"
+              component={MedicationAlarmScreen}
+              options={{ headerShown: false, gestureEnabled: false }}
+            />
           </>
         ) : (
           <>
@@ -319,16 +387,18 @@ function AppContent() {
 
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
-        <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
-          <ToastProvider>
-            <ToastBridgeRegister />
-            <NotificationChannelInitializer />
-            <AppContent />
-          </ToastProvider>
-        </KeyboardProvider>
-      </QueryClientProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
+          <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
+            <ToastProvider>
+              <ToastBridgeRegister />
+              <NotificationChannelInitializer />
+              <AppContent />
+            </ToastProvider>
+          </KeyboardProvider>
+        </QueryClientProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

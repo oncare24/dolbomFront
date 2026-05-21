@@ -1,5 +1,5 @@
 // 회원가입 Step 3: 비밀번호 (PIN 6자리 + 확인 재입력).
-// react-hook-form Controller로 외부 폼 상태에 연결.
+// 키보드 처리는 부모(SignupScreen)의 KeyboardAwareScrollView가 담당.
 
 import React from "react";
 import { StyleSheet, View } from "react-native";
@@ -22,54 +22,55 @@ export function SignupStepPassword({ onNext, isSubmitting }: Props) {
   const { errors, isValid } = useFormState<SignupFormValues>({ control });
 
   const handleNext = async () => {
-    // 이 스텝의 두 필드만 즉시 검증
     const ok = await trigger(["password", "passwordConfirm"]);
     if (ok) onNext();
   };
 
   return (
-    <View style={styles.container}>
+    <>
       <AppText variant="body" color="secondary" style={styles.helper}>
         숫자 6자리를 입력해주세요
       </AppText>
 
-      <Controller
-        control={control}
-        name="password"
-        render={({ field: { value, onChange, onBlur } }) => (
-          <AppTextInput
-            label="비밀번호"
-            value={value}
-            onChangeText={(t) => onChange(t.replace(/\D/g, "").slice(0, 6))}
-            onBlur={onBlur}
-            placeholder="숫자 6자리"
-            keyboardType="number-pad"
-            secureTextEntry
-            maxLength={6}
-            error={errors.password?.message}
-          />
-        )}
-      />
+      <View style={styles.fields}>
+        <Controller
+          control={control}
+          name="password"
+          render={({ field: { value, onChange, onBlur } }) => (
+            <AppTextInput
+              label="비밀번호"
+              value={value}
+              onChangeText={(t) => onChange(t.replace(/\D/g, "").slice(0, 6))}
+              onBlur={onBlur}
+              placeholder="숫자 6자리"
+              keyboardType="number-pad"
+              secureTextEntry
+              maxLength={6}
+              error={errors.password?.message}
+            />
+          )}
+        />
 
-      <Controller
-        control={control}
-        name="passwordConfirm"
-        render={({ field: { value, onChange, onBlur } }) => (
-          <AppTextInput
-            label="비밀번호 확인"
-            value={value}
-            onChangeText={(t) => onChange(t.replace(/\D/g, "").slice(0, 6))}
-            onBlur={onBlur}
-            placeholder="다시 한 번 입력"
-            keyboardType="number-pad"
-            secureTextEntry
-            maxLength={6}
-            error={errors.passwordConfirm?.message}
-          />
-        )}
-      />
+        <Controller
+          control={control}
+          name="passwordConfirm"
+          render={({ field: { value, onChange, onBlur } }) => (
+            <AppTextInput
+              label="비밀번호 확인"
+              value={value}
+              onChangeText={(t) => onChange(t.replace(/\D/g, "").slice(0, 6))}
+              onBlur={onBlur}
+              placeholder="다시 한 번 입력"
+              keyboardType="number-pad"
+              secureTextEntry
+              maxLength={6}
+              error={errors.passwordConfirm?.message}
+            />
+          )}
+        />
+      </View>
 
-      <View style={styles.actions}>
+      <View style={styles.submitWrap}>
         <PrimaryButton
           label={isSubmitting ? "가입 중..." : "다음"}
           onPress={handleNext}
@@ -77,20 +78,18 @@ export function SignupStepPassword({ onNext, isSubmitting }: Props) {
           loading={isSubmitting}
         />
       </View>
-    </View>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  helper: {
+    marginBottom: Spacing.md,
+  },
+  fields: {
     gap: Spacing.md,
   },
-  helper: {
-    marginBottom: Spacing.xs,
-  },
-  actions: {
-    marginTop: "auto",
-    paddingBottom: Spacing.xl,
+  submitWrap: {
+    marginTop: Spacing.xl,
   },
 });

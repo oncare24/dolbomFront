@@ -83,14 +83,6 @@ export async function getWalkingRoute(
   );
   const raw = res.data as unknown as BackendWalkingResponse;
 
-  // ★ 한 줄 추가
-  console.log(
-    "[NAV] cards:",
-    raw.cards?.length,
-    "first path:",
-    raw.cards?.[1]?.path?.slice(0, 3),
-  );
-
   const tmapResponse = backendCardsToTmapResponse(raw.cards, {
     startLat: req.startLat,
     startLon: req.startLon,
@@ -113,16 +105,6 @@ export async function getTransitRoute(
     req,
   );
   const raw = res.data as unknown as BackendTransitResponse;
-
-  // ★ 임시 로그
-  console.log(
-    "[NAV TRANSIT] card types:",
-    raw.cards?.map((c) => c.type).join(", "),
-  );
-  console.log(
-    "[NAV TRANSIT] instructions:",
-    raw.cards?.map((c) => c.instruction).join(" | "),
-  );
 
   const tmapResponse = backendCardsToTmapResponse(raw.cards, {
     startLat: req.startLat,

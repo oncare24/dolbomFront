@@ -2,11 +2,12 @@
 // iOS 시스템 segmented, 토스 큰글씨 빈도 토글 패턴 참고.
 
 import React from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { AppText } from "../common/Text";
 import { Colors, Radius, Spacing } from "../../theme";
 import { haptic } from "../../utils/haptics";
 import type { MedicationScheduleType } from "../../types/medication";
+import { Pressable } from "react-native-gesture-handler";
 
 interface Props {
   value: MedicationScheduleType;

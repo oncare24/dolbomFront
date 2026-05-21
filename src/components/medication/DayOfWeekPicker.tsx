@@ -34,7 +34,6 @@ export function DayOfWeekPicker({
   audience = "elderly",
 }: Props) {
   const isElderly = audience === "elderly";
-  const size = isElderly ? 44 : 40;
 
   const toggle = (day: DayOfWeek) => {
     haptic.light();
@@ -73,9 +72,6 @@ export function DayOfWeekPicker({
               style={[
                 styles.chip,
                 {
-                  width: size,
-                  height: size,
-                  borderRadius: size / 2,
                   backgroundColor: selected
                     ? Colors.brand.primary
                     : Colors.surface.card,
@@ -116,13 +112,16 @@ export function DayOfWeekPicker({
 const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    gap: Spacing.xs,
   },
   chip: {
+    flex: 1,
+    aspectRatio: 1,
+    borderRadius: 999,
+    borderWidth: 1.5,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1.5,
     overflow: "hidden",
   },
   error: {

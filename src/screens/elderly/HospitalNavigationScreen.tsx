@@ -1,14 +1,14 @@
-// 길안내 화면 래퍼 (mode 분기).
+// 길안내 화면 래퍼 (mode 분기 + 재탐색 처리).
 //
 // 흐름:
 //   HospitalRecommendResult → 길안내 버튼 → 모달에서 모드 선택
 //   → 이 화면으로 이동 (mode + 출발/도착 좌표 받음)
 //
 // 모드별 분기:
-//   - walking: NavigationScreen (지도 + GPS 추적)
+//   - walking: NavigationScreen (지도 + GPS 추적 + 재탐색)
 //   - transit: TransitGuideScreen (정류장/버스 카드 리스트)
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -45,6 +45,7 @@ export default function HospitalNavigationScreen() {
 
   // 도보용
   const [tmapResponse, setTmapResponse] = useState<TmapResponse | null>(null);
+  const [isRerouting, setIsRerouting] = useState(false);
   // 대중교통용 (raw 백엔드 응답)
   const [transitData, setTransitData] = useState<BackendTransitResponse | null>(
     null,
@@ -57,7 +58,6 @@ export default function HospitalNavigationScreen() {
     let cancelled = false;
 
     async function loadRoute() {
-      console.log("[ROUTE] mode:", mode);
       setLoading(true);
       setError(null);
       setTmapResponse(null);
@@ -144,6 +144,29 @@ export default function HospitalNavigationScreen() {
     };
   }, [mode, startLat, startLon, endLat, endLon, endName]);
 
+  // 경로 이탈 시 재탐색 — 새 출발지(=현재 위치)로 도보 경로 재요청
+  const handleReroute = useCallback(
+    async (current: { latitude: number; longitude: number }) => {
+      if (mode !== "walking" || isRerouting) return;
+      setIsRerouting(true);
+      try {
+        const { tmapResponse: newResponse } = await getWalkingRoute({
+          startLat: current.latitude,
+          startLon: current.longitude,
+          endLat,
+          endLon,
+          endName,
+        });
+        setTmapResponse(newResponse);
+      } catch {
+        // 재탐색 실패 시 기존 경로 유지 (다음 GPS 업데이트에서 재시도됨)
+      } finally {
+        setIsRerouting(false);
+      }
+    },
+    [mode, isRerouting, endLat, endLon, endName],
+  );
+
   // 로딩
   if (loading) {
     return (
@@ -199,6 +222,7 @@ export default function HospitalNavigationScreen() {
       <NavigationScreen
         tmapResponse={tmapResponse}
         onNavigationEnd={() => navigation.goBack()}
+        onReroute={handleReroute}
       />
     );
   }

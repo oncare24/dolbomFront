@@ -1,8 +1,7 @@
 // ============================================================
-// Haversine 거리 계산
+// Haversine 거리 계산 + 점-선분 최단거리
 // ============================================================
-// 두 GPS 좌표 사이의 실제 거리(미터)를 구하는 공식
-// 사용처: 카드 전환 판정(20m), 경로 이탈 감지(50m), 서버 지오펜싱
+// 사용처: 카드 전환 판정, 경로 이탈 감지, 서버 지오펜싱
 
 const EARTH_RADIUS_METERS = 6_371_000;
 
@@ -30,25 +29,85 @@ export function haversine(
   return EARTH_RADIUS_METERS * centralAngle;
 }
 
-/** 현재 위치 → 경로(좌표 배열)까지 최소 거리 (경로 이탈 감지용) */
+/**
+ * 현재 위치 → 경로(좌표 배열)까지 최소 거리 (경로 이탈 감지용).
+ *
+ * 경로는 연속된 선분들의 집합 — 각 선분과의 최단거리 중 최솟값.
+ * 점-점 거리만 쓰면 좌표가 듬성듬성한 긴 직선 구간에서 오판.
+ */
 export function distanceToPath(
   currentLat: number,
   currentLon: number,
   pathCoords: { latitude: number; longitude: number }[],
 ): number {
   if (pathCoords.length === 0) return Infinity;
-
-  let minDistance = Infinity;
-  for (const coord of pathCoords) {
-    const d = haversine(
+  if (pathCoords.length === 1) {
+    return haversine(
       currentLat,
       currentLon,
-      coord.latitude,
-      coord.longitude,
+      pathCoords[0].latitude,
+      pathCoords[0].longitude,
+    );
+  }
+
+  let minDistance = Infinity;
+  for (let i = 0; i < pathCoords.length - 1; i++) {
+    const d = pointToSegmentDistance(
+      currentLat,
+      currentLon,
+      pathCoords[i].latitude,
+      pathCoords[i].longitude,
+      pathCoords[i + 1].latitude,
+      pathCoords[i + 1].longitude,
     );
     if (d < minDistance) minDistance = d;
   }
   return minDistance;
+}
+
+/**
+ * 점 P와 선분 AB의 최단거리.
+ *
+ * Equirectangular 근사로 평면 좌표계에서 사영(projection) → t를 [0,1] 클램프
+ * → 가장 가까운 점을 Haversine으로 실제 거리 변환.
+ * 짧은 거리(<수 km)에서 충분히 정확.
+ */
+function pointToSegmentDistance(
+  pLat: number,
+  pLon: number,
+  aLat: number,
+  aLon: number,
+  bLat: number,
+  bLon: number,
+): number {
+  const meanLatRad = ((aLat + bLat) / 2) * (Math.PI / 180);
+  const cosLat = Math.cos(meanLatRad);
+
+  // 평면 좌표 변환 (경도에 cos(lat) 보정)
+  const ax = aLon * cosLat;
+  const ay = aLat;
+  const bx = bLon * cosLat;
+  const by = bLat;
+  const px = pLon * cosLat;
+  const py = pLat;
+
+  const dx = bx - ax;
+  const dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+
+  let t: number;
+  if (lenSq === 0) {
+    t = 0; // A == B (퇴화 선분)
+  } else {
+    t = ((px - ax) * dx + (py - ay) * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+  }
+
+  // 선분 위의 가장 가까운 점
+  const closestLat = ay + t * dy;
+  const closestLon = (ax + t * dx) / cosLat;
+
+  return haversine(pLat, pLon, closestLat, closestLon);
 }
 
 /** 거리 → "1.5km" 또는 "200m" */

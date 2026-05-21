@@ -3,10 +3,11 @@
 // 오전/오후 토글 (12시간제 입력용).
 
 import React from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { AppText } from "../common/Text";
 import { Colors, Radius, Spacing } from "../../theme";
 import { haptic } from "../../utils/haptics";
+import { Pressable } from "react-native-gesture-handler";
 
 export type Period = "AM" | "PM";
 

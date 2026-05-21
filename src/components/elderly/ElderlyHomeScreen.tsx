@@ -98,26 +98,25 @@ export default function ElderlyHomeScreen() {
       return;
     }
     if (action === "medication") {
-      navigation.navigate("MedicationToday");
+      navigation.navigate("MedicationList", { protegeId: userId });
       return;
     }
 
     const labels: Record<ElderlyHomeAction, string> = {
       sos: "긴급 호출",
       hospital: "병원 찾기",
-      medication: "약 챙기기",
+      medication: "복약 일정",
     };
     toast.show({
       message: `${labels[action]} 화면으로 이동 (구현 예정)`,
       variant: "info",
     });
   };
-
   const handleSettings = () => {
     navigation.navigate("ElderlySettings");
   };
 
-  const handleMedicationDetail = () => handleAction("medication");
+  const handleMedicationDetail = () => navigation.navigate("MedicationToday");
   const handleMedicationAnalysis = () => {
     if (medicationAnalysisQuery.data) {
       navigation.navigate("MedicationAnalysisResult");
