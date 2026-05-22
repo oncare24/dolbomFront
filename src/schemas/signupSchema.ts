@@ -1,6 +1,4 @@
-// 회원가입 입력 검증 스키마.
-// react-hook-form + @hookform/resolvers/zod 와 함께 사용.
-
+// front/src/schemas/signupSchema.ts
 import { z } from "zod";
 
 const phoneRegex = /^010-\d{4}-\d{4}$/;
@@ -37,7 +35,7 @@ export const passwordSchema = z
     path: ["passwordConfirm"],
   });
 
-// ★ 통합 스키마 — 모든 필드에 한글 메시지 추가
+// ★ 통합 스키마 — age / isPregnant 추가, ELDER 한정 필수
 export const signupSchema = z
   .object({
     role: z.enum(["elderly", "guardian"], {
@@ -57,10 +55,34 @@ export const signupSchema = z
       .min(1, "비밀번호를 입력해주세요")
       .regex(pinRegex, "숫자 6자리로 입력해주세요"),
     passwordConfirm: z.string().min(1, "비밀번호를 다시 입력해주세요"),
+
+    // 피보호자 한정 입력. text input → 문자열로 보관, 제출 시 Number 변환.
+    age: z.string().optional(),
+    // 라디오 선택 전 = undefined. 제출 시 boolean 보장.
+    isPregnant: z.boolean().optional(),
   })
   .refine((data) => data.password === data.passwordConfirm, {
     message: "비밀번호가 일치하지 않아요",
     path: ["passwordConfirm"],
+  })
+  .superRefine((data, ctx) => {
+    if (data.role !== "elderly") return;
+
+    const ageNum = Number(data.age);
+    if (!data.age || !Number.isInteger(ageNum) || ageNum < 1 || ageNum > 120) {
+      ctx.addIssue({
+        path: ["age"],
+        code: z.ZodIssueCode.custom,
+        message: "나이를 1~120 사이로 입력해주세요",
+      });
+    }
+    if (data.isPregnant === undefined || data.isPregnant === null) {
+      ctx.addIssue({
+        path: ["isPregnant"],
+        code: z.ZodIssueCode.custom,
+        message: "임신 여부를 선택해주세요",
+      });
+    }
   });
 
 export type SignupFormValues = z.infer<typeof signupSchema>;

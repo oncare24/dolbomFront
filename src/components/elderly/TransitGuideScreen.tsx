@@ -54,9 +54,7 @@ export default function TransitGuideScreen({ data, endName }: Props) {
         barStyle="dark-content"
         backgroundColor={Colors.surface.background}
       />
-      <View style={{ paddingTop: insets.top }}>
-        <AppHeader title="대중교통 안내" audience="elderly" />
-      </View>
+      <AppHeader title="대중교통 안내" audience="elderly" />
 
       {/* ── 상단 요약 ── */}
       <View style={styles.summaryCard}>
@@ -294,8 +292,10 @@ function shouldShowStopNode(
 ): boolean {
   const isTransit = (c: BackendNavigationCard) =>
     c.type === "BUS" || c.type === "SUBWAY";
-  return (isTransit(current) && next.type === "WALK") ||
-    (current.type === "WALK" && isTransit(next));
+  return (
+    (isTransit(current) && next.type === "WALK") ||
+    (current.type === "WALK" && isTransit(next))
+  );
 }
 
 // 정류장 노드의 라벨:

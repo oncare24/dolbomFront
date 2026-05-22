@@ -23,10 +23,14 @@ function stripPhone(phoneWithHyphens: string): string {
 // DTO
 // ───────────────────────────────────────────────────────
 export interface SignupRequest {
-  phone: string; // "010-1234-5678" 또는 "01012345678" 둘 다 OK (자동 정리)
-  password: string; // 6자리 숫자
+  phone: string;
+  password: string;
   name: string;
   role: UserRole;
+  /** ELDER 필수, GUARDIAN 미전송. Graph RAG ELDERLY 판정용. */
+  age?: number;
+  /** ELDER 필수, GUARDIAN 미전송. Graph RAG PREGNANCY 판정용. */
+  isPregnant?: boolean;
 }
 
 export interface SignupResponseRaw {
@@ -58,6 +62,8 @@ export async function signup(body: SignupRequest): Promise<SignupResponseRaw> {
     password: body.password,
     name: body.name,
     role: toBackendRole(body.role),
+    age: body.age,
+    isPregnant: body.isPregnant,
   });
   return res.data;
 }

@@ -1,24 +1,11 @@
-// FCM 푸시 알림 서비스.
-//
-// 책임 3가지:
-//   1) 알림 권한 요청 (Android 13+의 POST_NOTIFICATIONS 다이얼로그 포함)
-//   2) FCM 토큰 발급 (Expo 푸시 토큰이 아닌 네이티브 FCM 토큰 — 백엔드 Firebase Admin SDK가 그걸 사용)
-//   3) Android 알림 채널 등록 (Android 8+ 필수)
-//
-// 포그라운드 알림 동작 정책:
-//   - 앱이 켜져 있을 때 알림 수신하면 헤드업 배너 표시 + 사운드 + 뱃지
-//   - 보호자가 다른 화면 보다가 푸시 받으면 즉시 인지해야 하는 도메인 특성상
-//     iOS 기본 동작(조용히 처리)과 다르게 명시적으로 띄워줌
-
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import { Platform } from "react-native";
+import notifee, {
+  AndroidImportance,
+  AndroidVisibility,
+} from "react-native-notify-kit";
 
-// ───────────────────────────────────────────────────────
-// 포그라운드 알림 핸들러
-// 앱이 켜져 있을 때도 시스템 알림 UI를 띄움
-// App.tsx 최상단에서 1회만 호출
-// ───────────────────────────────────────────────────────
 export function configureNotificationHandler() {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -30,47 +17,52 @@ export function configureNotificationHandler() {
   });
 }
 
-// ───────────────────────────────────────────────────────
-// Android 알림 채널 등록
-// Android 8+ 부터 채널 없이는 알림이 안 뜸. 앱 시작 시 1회 등록.
-// ───────────────────────────────────────────────────────
 export async function registerAndroidNotificationChannel(): Promise<void> {
   if (Platform.OS !== "android") return;
 
+  // expo-notifications 기본 채널 (보호자 알림, SOS 등 일반 알림용)
   await Notifications.setNotificationChannelAsync("default", {
     name: "보살핌 알림",
     importance: Notifications.AndroidImportance.HIGH,
     vibrationPattern: [0, 250, 250, 250],
     lightColor: "#3478F6",
   });
+
+  // notify-kit 약 알람 채널 v2 — sound 없이 진동 + 풀스크린만.
+  // sound는 풀스크린 진입 후 TTS가 대신 (무음/벨소리 OFF/DND 상태 모두 무관).
+  // Android NotificationChannel sound는 immutable이라 v1 → v2 ID 교체로 리셋.
+  await notifee.createChannel({
+    id: "medication_alarm_v2",
+    name: "약 복용 알람",
+    importance: AndroidImportance.HIGH,
+    vibration: true,
+    vibrationPattern: [300, 500, 300, 500],
+    bypassDnd: true,
+    visibility: AndroidVisibility.PUBLIC,
+    lights: true,
+    lightColor: "#FF8A3D",
+  });
+
+  // 옛 채널 cleanup
+  await Notifications.deleteNotificationChannelAsync("medication").catch(
+    () => {},
+  );
+  await notifee.deleteChannel("medication_alarm").catch(() => {});
 }
 
-// ───────────────────────────────────────────────────────
-// 권한 요청 + FCM 토큰 발급
-//
-// 반환값 의미:
-//   - string: FCM 토큰 발급 성공 (백엔드에 등록 가능)
-//   - null: 실기기 아님 / 권한 거부 / 발급 실패
-//
-// 호출 측은 null이어도 로그인 흐름을 계속 진행해야 함.
-// ───────────────────────────────────────────────────────
 export async function requestPermissionAndGetFcmToken(): Promise<
   string | null
 > {
-  // 에뮬레이터에서는 FCM 토큰을 못 받음. 실기기 체크.
   if (!Device.isDevice) {
     console.warn("[FCM] not a physical device — skip token request");
     return null;
   }
 
-  // Android 채널 먼저 (없으면 알림이 안 뜸)
   await registerAndroidNotificationChannel();
 
-  // 현재 권한 상태 확인
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
 
-  // 아직 결정 안 된 상태면 권한 요청 (Android 13+에서 POST_NOTIFICATIONS 다이얼로그 표시)
   if (existingStatus !== "granted") {
     const { status } = await Notifications.requestPermissionsAsync();
     finalStatus = status;
@@ -81,8 +73,9 @@ export async function requestPermissionAndGetFcmToken(): Promise<
     return null;
   }
 
-  // FCM 토큰 발급. getDevicePushTokenAsync는 Android에서 네이티브 FCM 토큰을 반환.
-  // (getExpoPushTokenAsync는 Expo 푸시 서비스용이라 우리 백엔드(Firebase Admin)에 안 맞음)
+  // notifee 권한 (Android 13+ POST_NOTIFICATIONS + USE_FULL_SCREEN_INTENT)
+  await notifee.requestPermission();
+
   try {
     const tokenResponse = await Notifications.getDevicePushTokenAsync();
     if (tokenResponse.type !== "android") {
@@ -98,4 +91,17 @@ export async function requestPermissionAndGetFcmToken(): Promise<
     console.warn("[FCM] failed to get device push token:", e);
     return null;
   }
+}
+
+/** 정확한 알람 권한(SCHEDULE_EXACT_ALARM) 확인. false면 시스템 설정으로 안내 가능. */
+export async function checkExactAlarmPermission(): Promise<boolean> {
+  if (Platform.OS !== "android") return true;
+  const settings = await notifee.getNotificationSettings();
+  return settings.android.alarm === 1; // ENABLED = 1
+}
+
+/** 정확한 알람 권한 설정 화면 열기. */
+export async function openExactAlarmSettings(): Promise<void> {
+  if (Platform.OS !== "android") return;
+  await notifee.openAlarmPermissionSettings();
 }

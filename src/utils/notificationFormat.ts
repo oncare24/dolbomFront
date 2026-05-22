@@ -77,5 +77,11 @@ export function getNotificationIcon(
         color: Colors.semantic.warning,
         bgColor: Colors.semantic.warningBg,
       };
+    case "DRUG_ANALYSIS_REFRESH_REQUEST":
+      return {
+        name: "shield-checkmark-outline",
+        color: Colors.brand.primary,
+        bgColor: Colors.brand.primaryLight,
+      };
   }
 }

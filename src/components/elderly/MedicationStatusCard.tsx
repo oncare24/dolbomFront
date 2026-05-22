@@ -1,5 +1,6 @@
 // 오늘의 복약 진행 상태 카드.
 // 진행률 표시 + 다음 복용 시간 안내.
+// 일정 없음 / 모두 완료 / 진행 중 3가지 상태.
 
 import React from "react";
 import { Pressable, StyleSheet, View } from "react-native";
@@ -46,9 +47,18 @@ export function MedicationStatusCard({ status, onPress }: Props) {
     onPress();
   };
 
-  const allDone = status.takenCount >= status.totalCount;
+  const isEmpty = status.totalCount === 0;
+  const allDone = !isEmpty && status.takenCount >= status.totalCount;
   const progress =
     status.totalCount > 0 ? status.takenCount / status.totalCount : 0;
+
+  const a11y = isEmpty
+    ? "등록된 약이 없어요. 약 추가하기"
+    : allDone
+    ? "오늘 약 모두 복용 완료"
+    : `오늘 약, ${status.takenCount}회 중 ${status.totalCount}회 복용, 다음 ${
+        status.nextLabel ?? ""
+      } ${status.nextTime ?? ""}`;
 
   return (
     <AnimatedPressable
@@ -57,11 +67,7 @@ export function MedicationStatusCard({ status, onPress }: Props) {
       onPressOut={handlePressOut}
       android_ripple={{ color: Colors.gray[200], borderless: false }}
       accessibilityRole="button"
-      accessibilityLabel={
-        allDone
-          ? "오늘 약 모두 복용 완료"
-          : `오늘 약, ${status.takenCount}회 중 ${status.totalCount}회 복용, 다음 ${status.nextLabel} ${status.nextTime}`
-      }
+      accessibilityLabel={a11y}
       style={[styles.card, animatedStyle]}
     >
       {/* 헤더 */}
@@ -82,7 +88,18 @@ export function MedicationStatusCard({ status, onPress }: Props) {
 
       {/* 본문 */}
       <View style={styles.body}>
-        {allDone ? (
+        {isEmpty ? (
+          <View style={styles.allDoneRow}>
+            <Ionicons
+              name="add-circle-outline"
+              size={28}
+              color={Colors.brand.primary}
+            />
+            <AppText variant="body" color="primary" style={styles.allDoneText}>
+              등록된 약이 없어요
+            </AppText>
+          </View>
+        ) : allDone ? (
           <View style={styles.allDoneRow}>
             <Ionicons
               name="checkmark-circle"

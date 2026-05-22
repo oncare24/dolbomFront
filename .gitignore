@@ -44,4 +44,4 @@ firebase/
 *.firebase-adminsdk*.json
 # Firebase
 google-services.json
-firebase/service-account.json
+firebase/service-account.jsonfriend_*.txt

@@ -1,3 +1,5 @@
+// App.tsx
+
 // 보살핌 - 메인 진입점
 // 인증 상태 기반 라우팅 분기
 
@@ -31,11 +33,13 @@ import MedicalChatScreen from "./src/screens/elderly/MedicalChatScreen";
 import HospitalRecommendResultScreen from "./src/screens/elderly/HospitalRecommendResultScreen";
 import HospitalNavigationScreen from "./src/screens/elderly/HospitalNavigationScreen";
 import GuardianHomeScreen from "./src/components/guardian/GuardianHomeScreen";
+import ProtegeDetailScreen from "./src/screens/guardian/ProtegeDetailScreen";
 import SafetyZoneListScreen from "./src/components/guardian/SafetyZoneListScreen";
 import SafetyZoneEditScreen from "./src/components/guardian/SafetyZoneEditScreen";
 import NotificationsScreen from "./src/screens/guardian/NotificationsScreen";
 import SosScreen from "./src/screens/elderly/SosScreen";
 import SosLocationViewScreen from "./src/screens/guardian/SosLocationViewScreen";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 // ─── 튜토리얼 화면 ───
 import TutorialHomeScreen from "./src/screens/tutorial/TutorialHomeScreen";
@@ -47,7 +51,21 @@ import TutorialCompleteScreen from "./src/screens/tutorial/TutorialCompleteScree
 // ─── 설정 화면 ───
 import ElderlySettingsScreen from "./src/screens/elderly/ElderlySettingsScreen";
 
+import MedicationTodayScreen from "./src/screens/elderly/MedicationTodayScreen";
+import MedicationListScreen from "./src/screens/shared/MedicationListScreen";
+import MedicationEditScreen from "./src/screens/shared/MedicationEditScreen";
+import MedicationAnalysisIntroScreen from "./src/screens/elderly/MedicationAnalysisIntroScreen";
+import MedicationAnalysisFormScreen from "./src/screens/elderly/MedicationAnalysisFormScreen";
+import MedicationAnalysisWaitingScreen from "./src/screens/elderly/MedicationAnalysisWaitingScreen";
+import MedicationAnalysisResultScreen from "./src/screens/elderly/MedicationAnalysisResultScreen";
+import MedicationAnalysisDetailScreen from "./src/screens/guardian/MedicationAnalysisDetailScreen";
+import NotificationPreferencesScreen from "./src/screens/guardian/NotificationPreferencesScreen";
+import PrescriptionListScreen from "./src/screens/elderly/PrescriptionListScreen";
+import { useMedicationReminderSync } from "./src/hooks/useMedicationReminderSync";
+import notifee, { EventType } from "react-native-notify-kit";
+import MedicationAlarmScreen from "./src/screens/elderly/MedicationAlarmScreen";
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
 configureNotificationHandler();
@@ -88,22 +106,49 @@ function AppContent() {
   const role = useAuthStore((s) => s.user?.role);
   const lastNotificationResponse = Notifications.useLastNotificationResponse();
 
+  // 피보호자 시점 알림 클릭 라우팅
   useEffect(() => {
-    if (!isAuthenticated || role !== "guardian") return;
+    if (!isAuthenticated || role !== "elderly") return;
 
-    const handleResponse = (response: Notifications.NotificationResponse) => {
-      const data = response.notification.request.content.data as
-        | { type?: string; eventId?: string }
+    // notifee 이벤트 (medication 알람 — 풀스크린 진입)
+    const unsubNotifee = notifee.onForegroundEvent(({ type, detail }) => {
+      const data = detail.notification?.data as
+        | { type?: string; scheduleId?: string; medicationName?: string }
         | undefined;
 
-      if (data?.type !== "SOS" || !data.eventId) return;
+      if (data?.type !== "MEDICATION_REMINDER") return;
+      if (type !== EventType.DELIVERED && type !== EventType.PRESS) return;
+      if (!data.scheduleId || !data.medicationName) return;
 
-      const eventId = Number(data.eventId);
-      if (Number.isNaN(eventId)) return;
+      const scheduleId = Number(data.scheduleId);
+      if (Number.isNaN(scheduleId)) return;
 
       const tryNavigate = (retry = 0) => {
         if (navigationRef.isReady()) {
-          navigationRef.navigate("SosLocationView", { eventId });
+          navigationRef.navigate("MedicationAlarm", {
+            scheduleId,
+            medicationName: data.medicationName!,
+          });
+        } else if (retry < 10) {
+          setTimeout(() => tryNavigate(retry + 1), 100);
+        }
+      };
+      tryNavigate();
+    });
+
+    // expo-notifications 이벤트 (DRUG_ANALYSIS_REFRESH_REQUEST 등 기존 알림)
+    const handleExpoResponse = (
+      response: Notifications.NotificationResponse,
+    ) => {
+      const data = response.notification.request.content.data as
+        | { type?: string }
+        | undefined;
+
+      if (data?.type !== "DRUG_ANALYSIS_REFRESH_REQUEST") return;
+
+      const tryNavigate = (retry = 0) => {
+        if (navigationRef.isReady()) {
+          navigationRef.navigate("MedicationAnalysisIntro");
         } else if (retry < 10) {
           setTimeout(() => tryNavigate(retry + 1), 100);
         }
@@ -111,11 +156,74 @@ function AppContent() {
       tryNavigate();
     };
 
-    const sub =
-      Notifications.addNotificationResponseReceivedListener(handleResponse);
+    const subExpo =
+      Notifications.addNotificationResponseReceivedListener(handleExpoResponse);
 
     if (lastNotificationResponse) {
-      handleResponse(lastNotificationResponse);
+      handleExpoResponse(lastNotificationResponse);
+    }
+
+    // 앱이 알람으로 시작된 경우 (cold start)
+    notifee.getInitialNotification().then((initial) => {
+      if (!initial) return;
+      const data = initial.notification.data as
+        | { type?: string; scheduleId?: string; medicationName?: string }
+        | undefined;
+      if (data?.type !== "MEDICATION_REMINDER") return;
+      if (!data.scheduleId || !data.medicationName) return;
+      const scheduleId = Number(data.scheduleId);
+      if (Number.isNaN(scheduleId)) return;
+
+      const tryNavigate = (retry = 0) => {
+        if (navigationRef.isReady()) {
+          navigationRef.navigate("MedicationAlarm", {
+            scheduleId,
+            medicationName: data.medicationName!,
+          });
+        } else if (retry < 10) {
+          setTimeout(() => tryNavigate(retry + 1), 100);
+        }
+      };
+      tryNavigate();
+    });
+
+    return () => {
+      unsubNotifee();
+      subExpo.remove();
+    };
+  }, [isAuthenticated, role, lastNotificationResponse]);
+
+  useMedicationReminderSync();
+
+  // 피보호자 시점 푸시 라우팅: 보호자가 발사한 재분석 요청 → 분석 흐름 진입.
+  useEffect(() => {
+    if (!isAuthenticated || role !== "elderly") return;
+
+    const handleElderlyResponse = (
+      response: Notifications.NotificationResponse,
+    ) => {
+      const data = response.notification.request.content.data as
+        | { type?: string; wardId?: string }
+        | undefined;
+
+      if (data?.type !== "DRUG_ANALYSIS_REFRESH_REQUEST") return;
+
+      const tryNavigate = (retry = 0) => {
+        if (navigationRef.isReady()) {
+          navigationRef.navigate("MedicationAnalysisIntro");
+        } else if (retry < 10) {
+          setTimeout(() => tryNavigate(retry + 1), 100);
+        }
+      };
+      tryNavigate();
+    };
+
+    const sub = Notifications.addNotificationResponseReceivedListener(
+      handleElderlyResponse,
+    );
+
+    if (lastNotificationResponse) {
+      handleElderlyResponse(lastNotificationResponse);
     }
 
     return () => sub.remove();
@@ -186,10 +294,56 @@ function AppContent() {
               name="TutorialComplete"
               component={TutorialCompleteScreen}
             />
+            <Stack.Screen
+              name="MedicationToday"
+              component={MedicationTodayScreen}
+            />
+            <Stack.Screen
+              name="MedicationList"
+              component={MedicationListScreen}
+            />
+            <Stack.Screen
+              name="MedicationEdit"
+              component={MedicationEditScreen}
+            />
+            <Stack.Screen
+              name="MedicationAnalysisIntro"
+              component={MedicationAnalysisIntroScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="MedicationAnalysisForm"
+              component={MedicationAnalysisFormScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="MedicationAnalysisWaiting"
+              component={MedicationAnalysisWaitingScreen}
+              options={{ headerShown: false, gestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="MedicationAnalysisResult"
+              component={MedicationAnalysisResultScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="PrescriptionList"
+              component={PrescriptionListScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="MedicationAlarm"
+              component={MedicationAlarmScreen}
+              options={{ headerShown: false, gestureEnabled: false }}
+            />
           </>
         ) : (
           <>
             <Stack.Screen name="GuardianHome" component={GuardianHomeScreen} />
+            <Stack.Screen
+              name="ProtegeDetail"
+              component={ProtegeDetailScreen}
+            />
             <Stack.Screen
               name="SafetyZoneList"
               component={SafetyZoneListScreen}
@@ -197,6 +351,14 @@ function AppContent() {
             <Stack.Screen
               name="SafetyZoneEdit"
               component={SafetyZoneEditScreen}
+            />
+            <Stack.Screen
+              name="MedicationList"
+              component={MedicationListScreen}
+            />
+            <Stack.Screen
+              name="MedicationEdit"
+              component={MedicationEditScreen}
             />
             <Stack.Screen name="InviteWard" component={InviteWardScreen} />
             <Stack.Screen
@@ -207,6 +369,15 @@ function AppContent() {
               name="SosLocationView"
               component={SosLocationViewScreen}
             />
+            <Stack.Screen
+              name="MedicationAnalysisDetail"
+              component={MedicationAnalysisDetailScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="NotificationPreferences"
+              component={NotificationPreferencesScreen}
+            />
           </>
         )}
       </Stack.Navigator>
@@ -216,16 +387,18 @@ function AppContent() {
 
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
-        <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
-          <ToastProvider>
-            <ToastBridgeRegister />
-            <NotificationChannelInitializer />
-            <AppContent />
-          </ToastProvider>
-        </KeyboardProvider>
-      </QueryClientProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
+          <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
+            <ToastProvider>
+              <ToastBridgeRegister />
+              <NotificationChannelInitializer />
+              <AppContent />
+            </ToastProvider>
+          </KeyboardProvider>
+        </QueryClientProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

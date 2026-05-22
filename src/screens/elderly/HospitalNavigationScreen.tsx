@@ -1,23 +1,23 @@
-// 길안내 화면 래퍼 (mode 분기).
+// 길안내 화면 래퍼 (mode 분기 + 재탐색 처리).
 //
 // 흐름:
 //   HospitalRecommendResult → 길안내 버튼 → 모달에서 모드 선택
 //   → 이 화면으로 이동 (mode + 출발/도착 좌표 받음)
 //
 // 모드별 분기:
-//   - walking: NavigationScreen (지도 + GPS 추적)
+//   - walking: NavigationScreen (지도 + GPS 추적 + 재탐색)
 //   - transit: TransitGuideScreen (정류장/버스 카드 리스트)
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
   StatusBar,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
@@ -39,13 +39,13 @@ type Nav = NativeStackNavigationProp<RootStackParamList, "HospitalNavigation">;
 type RouteParams = RouteProp<RootStackParamList, "HospitalNavigation">;
 
 export default function HospitalNavigationScreen() {
-  const insets = useSafeAreaInsets();
   const navigation = useNavigation<Nav>();
   const route = useRoute<RouteParams>();
   const { mode, startLat, startLon, endLat, endLon, endName } = route.params;
 
   // 도보용
   const [tmapResponse, setTmapResponse] = useState<TmapResponse | null>(null);
+  const [isRerouting, setIsRerouting] = useState(false);
   // 대중교통용 (raw 백엔드 응답)
   const [transitData, setTransitData] = useState<BackendTransitResponse | null>(
     null,
@@ -58,7 +58,6 @@ export default function HospitalNavigationScreen() {
     let cancelled = false;
 
     async function loadRoute() {
-      console.log("[ROUTE] mode:", mode);
       setLoading(true);
       setError(null);
       setTmapResponse(null);
@@ -105,10 +104,18 @@ export default function HospitalNavigationScreen() {
         if (cancelled) return;
 
         if (e instanceof ApiException && e.code === "V002") {
-          console.log("[ROUTE] V002 - falling back to walking");
-          setError(
-            "거리가 너무 가까워서 대중교통 경로를 찾을 수 없어요. 도보로 안내해드릴게요.",
-          );
+          // 대중교통 경로 없음 → 사용자에게 알리고 도보로 자동 전환
+          await new Promise<void>((resolve) => {
+            Alert.alert(
+              "도보로 안내해 드릴게요",
+              "거리가 너무 가까워서 버스나 지하철로 가기 어려워요. 걸어서 가시는 길로 안내해 드릴게요.",
+              [{ text: "확인", onPress: () => resolve() }],
+              { cancelable: false },
+            );
+          });
+
+          if (cancelled) return;
+
           try {
             const { tmapResponse } = await getWalkingRoute({
               startLat: actualStartLat,
@@ -117,10 +124,7 @@ export default function HospitalNavigationScreen() {
               endLon,
               endName,
             });
-            if (!cancelled) {
-              setTmapResponse(tmapResponse);
-              setError(null);
-            }
+            if (!cancelled) setTmapResponse(tmapResponse);
           } catch {
             if (!cancelled) {
               setError("길안내를 불러올 수 없어요. 잠시 후 다시 시도해주세요.");
@@ -140,6 +144,29 @@ export default function HospitalNavigationScreen() {
     };
   }, [mode, startLat, startLon, endLat, endLon, endName]);
 
+  // 경로 이탈 시 재탐색 — 새 출발지(=현재 위치)로 도보 경로 재요청
+  const handleReroute = useCallback(
+    async (current: { latitude: number; longitude: number }) => {
+      if (mode !== "walking" || isRerouting) return;
+      setIsRerouting(true);
+      try {
+        const { tmapResponse: newResponse } = await getWalkingRoute({
+          startLat: current.latitude,
+          startLon: current.longitude,
+          endLat,
+          endLon,
+          endName,
+        });
+        setTmapResponse(newResponse);
+      } catch {
+        // 재탐색 실패 시 기존 경로 유지 (다음 GPS 업데이트에서 재시도됨)
+      } finally {
+        setIsRerouting(false);
+      }
+    },
+    [mode, isRerouting, endLat, endLon, endName],
+  );
+
   // 로딩
   if (loading) {
     return (
@@ -148,9 +175,7 @@ export default function HospitalNavigationScreen() {
           barStyle="dark-content"
           backgroundColor={Colors.surface.background}
         />
-        <View style={{ paddingTop: insets.top }}>
-          <AppHeader title="길안내" audience="elderly" />
-        </View>
+        <AppHeader title="길안내" audience="elderly" />
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#1976D2" />
           <Text style={styles.loadingText}>
@@ -171,9 +196,7 @@ export default function HospitalNavigationScreen() {
           barStyle="dark-content"
           backgroundColor={Colors.surface.background}
         />
-        <View style={{ paddingTop: insets.top }}>
-          <AppHeader title="길안내" audience="elderly" />
-        </View>
+        <AppHeader title="길안내" audience="elderly" />
         <View style={styles.center}>
           <Text style={styles.errorText}>
             {error ?? "길안내를 불러올 수 없어요."}
@@ -199,6 +222,7 @@ export default function HospitalNavigationScreen() {
       <NavigationScreen
         tmapResponse={tmapResponse}
         onNavigationEnd={() => navigation.goBack()}
+        onReroute={handleReroute}
       />
     );
   }

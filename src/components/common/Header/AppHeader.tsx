@@ -2,6 +2,7 @@ import React from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppText } from "../Text";
 import { Colors, Spacing, Touch } from "../../../theme";
 import { haptic } from "../../../utils/haptics";
@@ -9,16 +10,15 @@ import { haptic } from "../../../utils/haptics";
 interface AppHeaderProps {
   title?: string;
   showBack?: boolean;
-  onBackPress?: () => void; // 지정하면 기본 goBack 대체
-  rightElement?: React.ReactNode; // 우측 액션 (설정 아이콘 등)
+  onBackPress?: () => void;
+  rightElement?: React.ReactNode;
   audience?: "elderly" | "guardian";
 }
 
 /**
  * AppHeader
- * - 표준 헤더. 좌측 뒤로가기 / 중앙 타이틀 / 우측 액션.
- * - 시니어 화면(elderly): 높이 64dp, 타이틀 h2(24sp).
- * - 보호자 화면(guardian): 높이 56dp, 타이틀 h3(18sp).
+ * - 표준 헤더. SafeArea top inset을 자체적으로 흡수해서 어디서 쓰든 상태바 아래에 위치.
+ * - side는 minWidth 56dp — rightElement가 길어지면(예: "관리" 텍스트) 확장됨.
  */
 export function AppHeader({
   title,
@@ -28,6 +28,7 @@ export function AppHeader({
   audience = "elderly",
 }: AppHeaderProps) {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
 
   const handleBack = () => {
     haptic.light();
@@ -42,59 +43,63 @@ export function AppHeader({
   const iconSize = audience === "elderly" ? 28 : 24;
 
   return (
-    <View style={[styles.container, { height }]}>
-      <View style={styles.side}>
-        {showBack && (
-          <Pressable
-            onPress={handleBack}
-            android_ripple={{
-              color: Colors.gray[200],
-              borderless: true,
-              radius: 24,
-            }}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="뒤로 가기"
-            style={styles.iconButton}
-          >
-            <Ionicons
-              name="arrow-back"
-              size={iconSize}
-              color={Colors.text.primary}
-            />
-          </Pressable>
-        )}
-      </View>
+    <View style={[styles.wrapper, { paddingTop: insets.top }]}>
+      <View style={[styles.container, { height }]}>
+        <View style={styles.side}>
+          {showBack && (
+            <Pressable
+              onPress={handleBack}
+              android_ripple={{
+                color: Colors.gray[200],
+                borderless: true,
+                radius: 24,
+              }}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="뒤로 가기"
+              style={styles.iconButton}
+            >
+              <Ionicons
+                name="arrow-back"
+                size={iconSize}
+                color={Colors.text.primary}
+              />
+            </Pressable>
+          )}
+        </View>
 
-      <View style={styles.titleWrap}>
-        {title && (
-          <AppText
-            variant={audience === "elderly" ? "h2" : "h3"}
-            audience={audience}
-            color="primary"
-            numberOfLines={1}
-          >
-            {title}
-          </AppText>
-        )}
-      </View>
+        <View style={styles.titleWrap}>
+          {title && (
+            <AppText
+              variant={audience === "elderly" ? "h2" : "h3"}
+              audience={audience}
+              color="primary"
+              numberOfLines={1}
+            >
+              {title}
+            </AppText>
+          )}
+        </View>
 
-      <View style={[styles.side, styles.sideRight]}>{rightElement}</View>
+        <View style={[styles.side, styles.sideRight]}>{rightElement}</View>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    backgroundColor: Colors.surface.background,
+  },
   container: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: Spacing.sm,
-    backgroundColor: Colors.surface.background,
     borderBottomWidth: 1,
     borderBottomColor: Colors.surface.divider,
   },
   side: {
-    width: Touch.comfortable,
+    minWidth: Touch.comfortable,
     alignItems: "flex-start",
     justifyContent: "center",
   },
