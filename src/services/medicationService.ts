@@ -90,6 +90,7 @@ function toFrontSchedule(
 ): MedicationSchedule {
   return {
     id: raw.scheduleId,
+    scheduleIds: raw.scheduleIds ?? [raw.scheduleId],
     protegeId: raw.wardId,
     medicationName: raw.medicationName,
     scheduledTime: toFrontTime(raw.scheduledTime),
@@ -106,6 +107,7 @@ function toFrontScheduleFromSource(
 ): MedicationSchedule {
   return {
     id: raw.scheduleId,
+    scheduleIds: [raw.scheduleId],
     protegeId,
     medicationName: raw.medicationName,
     scheduledTime: toFrontTime(raw.scheduledTime),
@@ -156,6 +158,7 @@ function groupSchedules(schedules: MedicationSchedule[]): MedicationSchedule[] {
       groups.set(key, {
         ...existing,
         daysOfWeek: DAY_ORDER.filter((d) => merged.has(d)),
+        scheduleIds: [...existing.scheduleIds, ...s.scheduleIds],
       });
     } else {
       groups.set(key, {

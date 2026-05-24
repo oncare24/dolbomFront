@@ -32,10 +32,7 @@ import type {
   TakeMedicationInput,
   UpdateMedicationScheduleInput,
 } from "../types/medication";
-import {
-  scheduleLocalRemindersForMedication,
-  cancelLocalRemindersForMedication,
-} from "../services/medicationReminderService";
+
 // ────────────────────────────────────────────
 // Query Keys
 // ────────────────────────────────────────────
@@ -123,6 +120,7 @@ export function useCreateMedicationSchedule() {
 
       const optimistic: MedicationSchedule = {
         id: -Date.now(),
+        scheduleIds: [],
         protegeId: input.protegeId,
         medicationName: input.medicationName,
         scheduledTime: input.scheduledTime,
@@ -145,10 +143,8 @@ export function useCreateMedicationSchedule() {
     },
 
     onSuccess: (savedSchedule) => {
-      scheduleLocalRemindersForMedication(savedSchedule).catch((e) =>
-        console.warn("[MED-LOCAL] create-sync failed:", e),
-      );
       maybeNotifyPastTimeToast(savedSchedule);
+      // 알람 등록은 useMedicationReminderSync가 데이터 변경을 감지해 자동 처리.
     },
 
     onSettled: (_data, _err, input) => {
@@ -228,19 +224,10 @@ export function useUpdateMedicationSchedule() {
     },
 
     onSuccess: (savedSchedule) => {
-      // 시각/요일/active 변경 시 OS 알람 재등록.
-      // scheduleLocalRemindersForMedication이 내부에서 기존 매핑 cancel 후 재등록 보장.
-      // active: false면 register는 no-op이라 별도 cancel 필요.
       if (savedSchedule.active) {
-        scheduleLocalRemindersForMedication(savedSchedule).catch((e) =>
-          console.warn("[MED-LOCAL] update-sync failed:", e),
-        );
         maybeNotifyPastTimeToast(savedSchedule);
-      } else {
-        cancelLocalRemindersForMedication(savedSchedule.id).catch((e) =>
-          console.warn("[MED-LOCAL] update-cancel failed:", e),
-        );
       }
+      // 알람 재등록은 useMedicationReminderSync가 자동 처리.
     },
 
     onSettled: (_data, _err, { scheduleId }) => {
@@ -273,12 +260,6 @@ export function useDeleteMedicationSchedule() {
 
     onError: (_err, _vars, context) => {
       if (context) qc.setQueryData(context.key, context.previous);
-    },
-
-    onSuccess: (_data, { scheduleId }) => {
-      cancelLocalRemindersForMedication(scheduleId).catch((e) =>
-        console.warn("[MED-LOCAL] delete-sync failed:", e),
-      );
     },
 
     onSettled: (_data, _err, { protegeId }) => {

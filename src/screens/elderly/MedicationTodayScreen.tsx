@@ -38,7 +38,7 @@ import { Colors, Radius, Spacing, Touch } from "../../theme";
 import { haptic } from "../../utils/haptics";
 import type { DayOfWeek, MedicationSchedule } from "../../types/medication";
 import type { RootStackParamList } from "../../types/navigation";
-
+import { MedicationSlotCard } from "../../components/elderly/MedicationSlotCard";
 const DOW_ORDER: DayOfWeek[] = [
   "SUNDAY",
   "MONDAY",
@@ -51,9 +51,11 @@ const DOW_ORDER: DayOfWeek[] = [
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "MedicationToday">;
 
-interface TodayItem {
-  schedule: MedicationSchedule;
+interface TodaySlot {
+  time: string;
+  schedules: MedicationSchedule[];
   isTaken: boolean;
+  isNext: boolean;
 }
 
 export default function MedicationTodayScreen() {
@@ -90,51 +92,70 @@ export default function MedicationTodayScreen() {
 
   const takeMutation = useTakeMedication();
 
-  // 오늘 일정 + 복용 상태 + 다음 복용 ID 계산
-  const { todayItems, totalCount, takenCount, nextScheduleId, allDone } =
-    useMemo(() => {
-      const todayDow = DOW_ORDER[now.getDay()];
+  const { slots, totalSlots, takenSlots, allDone } = useMemo(() => {
+    const todayDow = DOW_ORDER[now.getDay()];
 
-      const filtered = schedules
-        .filter(
-          (s) =>
-            s.active &&
-            (s.scheduleType === "DAILY" || s.daysOfWeek.includes(todayDow)),
-        )
-        .sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime));
+    const filtered = schedules.filter((s) => {
+      if (!s.active) return false;
+      if (s.scheduleType === "WEEKLY" && !s.daysOfWeek.includes(todayDow))
+        return false;
+      if (s.startDate && today < s.startDate) return false;
+      if (s.endDate && today > s.endDate) return false;
+      // 등록 시각 이후 회차만: 오늘 이 시각이 등록 시각보다 전이면 오늘은 제외(내일부터).
+      const [hh, mm] = s.scheduledTime.split(":").map(Number);
+      const doseToday = new Date(now);
+      doseToday.setHours(hh, mm, 0, 0);
+      if (s.createdAt && doseToday.getTime() < new Date(s.createdAt).getTime())
+        return false;
+      return true;
+    });
+    const takenIds = new Set(
+      logs.map((l) => l.scheduleId).filter((id): id is number => id !== null),
+    );
 
-      const takenIds = new Set(
-        logs.map((l) => l.scheduleId).filter((id): id is number => id !== null),
-      );
+    // 같은 시각끼리 묶기
+    const byTime = new Map<string, MedicationSchedule[]>();
+    for (const s of filtered) {
+      const list = byTime.get(s.scheduledTime) ?? [];
+      list.push(s);
+      byTime.set(s.scheduledTime, list);
+    }
 
-      const items: TodayItem[] = filtered.map((s) => ({
-        schedule: s,
-        isTaken: takenIds.has(s.id),
-      }));
-      const total = items.length;
-      const taken = items.filter((i) => i.isTaken).length;
-      const done = total > 0 && taken === total;
+    const grouped = Array.from(byTime.entries())
+      .map(([time, scheds]) => ({
+        time,
+        schedules: scheds,
+        isTaken: scheds.every((s) => takenIds.has(s.id)),
+      }))
+      .sort((a, b) => a.time.localeCompare(b.time));
 
-      // 다음 복용: 미복용 중 현재 시각 이후 가장 가까운 일정. 없으면 가장 이른 미복용.
-      const nowMinutes = now.getHours() * 60 + now.getMinutes();
-      const remaining = items
-        .filter((i) => !i.isTaken)
-        .map((i) => {
-          const [h, m] = i.schedule.scheduledTime.split(":").map(Number);
-          return { item: i, minutes: h * 60 + m };
-        })
-        .sort((a, b) => a.minutes - b.minutes);
-      const next =
-        remaining.find((x) => x.minutes >= nowMinutes) ?? remaining[0];
+    // 다음 회차: 미완료 중 현재 시각 이후 가장 가까운, 없으면 가장 이른 미완료
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const remaining = grouped
+      .filter((g) => !g.isTaken)
+      .map((g) => {
+        const [h, m] = g.time.split(":").map(Number);
+        return { time: g.time, minutes: h * 60 + m };
+      })
+      .sort((a, b) => a.minutes - b.minutes);
+    const nextTime =
+      (remaining.find((x) => x.minutes >= nowMinutes) ?? remaining[0])?.time ??
+      null;
 
-      return {
-        todayItems: items,
-        totalCount: total,
-        takenCount: taken,
-        nextScheduleId: next?.item.schedule.id ?? null,
-        allDone: done,
-      };
-    }, [schedules, logs, now]);
+    const slotList: TodaySlot[] = grouped.map((g) => ({
+      ...g,
+      isNext: g.time === nextTime,
+    }));
+    const total = slotList.length;
+    const taken = slotList.filter((g) => g.isTaken).length;
+
+    return {
+      slots: slotList,
+      totalSlots: total,
+      takenSlots: taken,
+      allDone: total > 0 && taken === total,
+    };
+  }, [schedules, logs, now, today]);
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
@@ -146,36 +167,42 @@ export default function MedicationTodayScreen() {
     }
   }, [refetchSchedules, refetchLogs]);
 
-  const handleTake = (item: TodayItem) => {
-    if (item.isTaken) {
+  const handleTakeSlot = (slot: TodaySlot) => {
+    if (slot.isTaken) {
       toast.show({
-        message: "이미 복용으로 표시된 약이에요",
+        message: "이미 복용으로 표시된 시간이에요",
         variant: "info",
         durationMs: 1500,
       });
       return;
     }
     haptic.success();
-    takeMutation.mutate(
-      {
-        protegeId,
-        scheduleId: item.schedule.id,
-        takenAt: nowLocalDateTimeIso(),
-        medicationName: item.schedule.medicationName,
-        logSource: "USER_INPUT",
-      },
-      {
-        onError: () => {
-          haptic.error();
-          toast.show({
-            message: "복용 표시에 실패했어요. 잠시 후 다시 시도해주세요",
-            variant: "error",
-          });
-        },
-      },
+    const takenIds = new Set(
+      logs.map((l) => l.scheduleId).filter((id): id is number => id !== null),
     );
+    const takenAt = nowLocalDateTimeIso();
+    for (const s of slot.schedules) {
+      if (takenIds.has(s.id)) continue; // 이미 기록된 약은 건너뜀
+      takeMutation.mutate(
+        {
+          protegeId,
+          scheduleId: s.id,
+          takenAt,
+          medicationName: s.medicationName,
+          logSource: "USER_INPUT",
+        },
+        {
+          onError: () => {
+            haptic.error();
+            toast.show({
+              message: "복용 표시에 실패했어요. 잠시 후 다시 시도해주세요",
+              variant: "error",
+            });
+          },
+        },
+      );
+    }
   };
-
   const handleManage = () => {
     navigation.navigate("MedicationList", { protegeId });
   };
@@ -215,23 +242,24 @@ export default function MedicationTodayScreen() {
           </View>
         ) : schedulesError ? (
           <MedicationTodayError onRetry={onRefresh} />
-        ) : totalCount === 0 ? (
+        ) : totalSlots === 0 ? (
           <MedicationTodayEmpty onAddPress={handleAddDirect} />
         ) : (
           <>
             <MedicationProgressCard
-              totalCount={totalCount}
-              takenCount={takenCount}
+              totalCount={totalSlots}
+              takenCount={takenSlots}
               allDone={allDone}
             />
             <View style={styles.list}>
-              {todayItems.map((item) => (
-                <MedicationItemCard
-                  key={item.schedule.id}
-                  schedule={item.schedule}
-                  isTaken={item.isTaken}
-                  isNext={item.schedule.id === nextScheduleId}
-                  onPress={() => handleTake(item)}
+              {slots.map((slot) => (
+                <MedicationSlotCard
+                  key={slot.time}
+                  time={slot.time}
+                  medicationNames={slot.schedules.map((s) => s.medicationName)}
+                  isTaken={slot.isTaken}
+                  isNext={slot.isNext}
+                  onPress={() => handleTakeSlot(slot)}
                 />
               ))}
             </View>

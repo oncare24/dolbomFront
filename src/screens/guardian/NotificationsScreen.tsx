@@ -83,6 +83,7 @@ export default function NotificationsScreen() {
           break;
 
         case "ZONE_EXIT":
+        case "ZONE_ENTER":
         case "DEVICE_DISCONNECTED":
         case "INACTIVITY_WARNING":
           // 위치/안전 관련 알림 → 해당 피보호자의 안전구역 목록 화면.

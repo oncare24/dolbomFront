@@ -47,6 +47,12 @@ export function getNotificationIcon(
         color: Colors.semantic.danger,
         bgColor: Colors.semantic.dangerBg,
       };
+    case "ZONE_ENTER":
+      return {
+        name: "shield-checkmark-outline",
+        color: Colors.semantic.success,
+        bgColor: Colors.semantic.successBg,
+      };
     case "DEVICE_DISCONNECTED":
       return {
         name: "cellular-outline",
@@ -70,6 +76,12 @@ export function getNotificationIcon(
         name: "medkit-outline",
         color: Colors.semantic.warning,
         bgColor: Colors.semantic.warningBg,
+      };
+    case "MEDICATION_DIGEST":
+      return {
+        name: "medkit-outline",
+        color: Colors.brand.primary,
+        bgColor: Colors.brand.primaryLight,
       };
     case "INACTIVITY_WARNING":
       return {

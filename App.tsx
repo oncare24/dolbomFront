@@ -120,22 +120,18 @@ function AppContent() {
     // notifee 이벤트 (medication 알람 — 풀스크린 진입)
     const unsubNotifee = notifee.onForegroundEvent(({ type, detail }) => {
       const data = detail.notification?.data as
-        | { type?: string; scheduleId?: string; medicationName?: string }
+        | { type?: string; time?: string }
         | undefined;
 
       if (data?.type !== "MEDICATION_REMINDER") return;
       if (type !== EventType.DELIVERED && type !== EventType.PRESS) return;
-      if (!data.scheduleId || !data.medicationName) return;
+      if (!data.time) return;
 
-      const scheduleId = Number(data.scheduleId);
-      if (Number.isNaN(scheduleId)) return;
+      const time = data.time;
 
       const tryNavigate = (retry = 0) => {
         if (navigationRef.isReady()) {
-          navigationRef.navigate("MedicationAlarm", {
-            scheduleId,
-            medicationName: data.medicationName!,
-          });
+          navigationRef.navigate("MedicationAlarm", { time });
         } else if (retry < 10) {
           setTimeout(() => tryNavigate(retry + 1), 100);
         }
@@ -174,19 +170,15 @@ function AppContent() {
     notifee.getInitialNotification().then((initial) => {
       if (!initial) return;
       const data = initial.notification.data as
-        | { type?: string; scheduleId?: string; medicationName?: string }
+        | { type?: string; time?: string }
         | undefined;
       if (data?.type !== "MEDICATION_REMINDER") return;
-      if (!data.scheduleId || !data.medicationName) return;
-      const scheduleId = Number(data.scheduleId);
-      if (Number.isNaN(scheduleId)) return;
+      if (!data.time) return;
+      const time = data.time;
 
       const tryNavigate = (retry = 0) => {
         if (navigationRef.isReady()) {
-          navigationRef.navigate("MedicationAlarm", {
-            scheduleId,
-            medicationName: data.medicationName!,
-          });
+          navigationRef.navigate("MedicationAlarm", { time });
         } else if (retry < 10) {
           setTimeout(() => tryNavigate(retry + 1), 100);
         }
@@ -213,19 +205,13 @@ function AppContent() {
             (d.notification.data as { type?: string } | undefined)?.type ===
             "MEDICATION_REMINDER",
         );
-        const data = alarm?.notification.data as
-          | { scheduleId?: string; medicationName?: string }
-          | undefined;
-        if (!data?.scheduleId || !data.medicationName) return;
-        const scheduleId = Number(data.scheduleId);
-        if (Number.isNaN(scheduleId)) return;
+        const data = alarm?.notification.data as { time?: string } | undefined;
+        if (!data?.time) return;
+        const time = data.time;
 
         const tryNavigate = (retry = 0) => {
           if (navigationRef.isReady()) {
-            navigationRef.navigate("MedicationAlarm", {
-              scheduleId,
-              medicationName: data.medicationName!,
-            });
+            navigationRef.navigate("MedicationAlarm", { time });
           } else if (retry < 10) {
             setTimeout(() => tryNavigate(retry + 1), 100);
           }
@@ -320,6 +306,16 @@ function AppContent() {
           if (Number.isNaN(eventId)) return;
           tryNavigate(() =>
             navigationRef.navigate("SosLocationView", { eventId }),
+          );
+          break;
+        }
+        case "ZONE_EXIT":
+        case "ZONE_ENTER": {
+          if (!data.wardId) return;
+          const protegeId = Number(data.wardId);
+          if (Number.isNaN(protegeId)) return;
+          tryNavigate(() =>
+            navigationRef.navigate("SafetyZoneList", { protegeId }),
           );
           break;
         }

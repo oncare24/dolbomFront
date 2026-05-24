@@ -55,8 +55,7 @@ function sameYmd(a: Date, b: Date): boolean {
   );
 }
 
-type ReminderMap = Record<number, string[]>;
-
+type ReminderMap = Record<string, string[]>;
 async function loadMap(): Promise<ReminderMap> {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
@@ -147,26 +146,27 @@ function buildAlarmTrigger(
  * 약 일정 1개의 로컬 알람 등록.
  * options.skipToday=true → 오늘 회차 무조건 skip (복용 체크된 schedule용).
  */
-export async function scheduleLocalRemindersForMedication(
-  schedule: MedicationSchedule,
-  options?: { skipToday?: boolean },
-): Promise<void> {
-  if (!isElderly()) return;
-  if (!schedule.active) return;
+// ────────────────────────────────────────────
+// 슬롯(시각) 단위 알람
+//   - 알림은 "이 시각에 약 시간"이라는 사실(data.time)만 담는다.
+//   - 어떤 약인지는 알람 화면이 울리는 순간 그날 그 시각 active한 약을 직접 읽어 보여준다.
+//   - 같은 시각 약이 여러 개여도 알람은 1개.
+// ────────────────────────────────────────────
 
-  await cancelLocalRemindersForMedication(schedule.id);
+function slotLabel(hour: number): string {
+  if (hour < 11) return "아침";
+  if (hour < 17) return "점심";
+  if (hour < 21) return "저녁";
+  return "밤";
+}
 
-  const [hourStr, minuteStr] = schedule.scheduledTime.split(":");
-  const hour = parseInt(hourStr, 10);
-  const minute = parseInt(minuteStr, 10);
-
-  const buildNotification = (timestamp: number) => ({
-    title: "약 드실 시간이에요",
-    body: `${schedule.medicationName} 먹을 시간입니다`,
+function buildSlotNotification(time: string, hour: number) {
+  return {
+    title: `${slotLabel(hour)} 약 드실 시간이에요`,
+    body: "드실 약을 확인해 주세요",
     data: {
       type: "MEDICATION_REMINDER",
-      scheduleId: String(schedule.id),
-      medicationName: schedule.medicationName,
+      time,
     },
     android: {
       channelId: CHANNEL_ID,
@@ -186,145 +186,107 @@ export async function scheduleLocalRemindersForMedication(
         launchActivity: "default",
       },
     },
-  });
+  };
+}
 
-  const map = await loadMap();
-  const notificationIds: string[] = [];
+/**
+ * 한 시각(슬롯)의 알람 예약.
+ * 슬롯 안 약들의 매일/요일/기간을 합쳐 필요한 날에만 알람 1개씩 깐다 (중복·빈 알람 없이).
+ */
+async function scheduleSlot(
+  time: string,
+  drugs: MedicationSchedule[],
+  skipToday: boolean,
+): Promise<string[]> {
+  const [hourStr, minuteStr] = time.split(":");
+  const hour = parseInt(hourStr, 10);
+  const minute = parseInt(minuteStr, 10);
+  const notif = buildSlotNotification(time, hour);
+  const ids: string[] = [];
 
-  if (schedule.endDate) {
-    // 종료일 있는 약(처방/기간 지정): 종료일까지 '1회성' 알람만 깔고 반복하지 않음.
-    // 종료일 이후엔 OS에 알람 자체가 없으므로 앱을 안 열어도 더는 안 울림.
-    const now = new Date();
-    const today0 = new Date();
-    today0.setHours(0, 0, 0, 0);
-    const start = schedule.startDate
-      ? parseDateOnly(schedule.startDate)
-      : today0;
-    const end = parseDateOnly(schedule.endDate);
-    const fromTime = Math.max(start.getTime(), today0.getTime());
+  // 1) 계속 복용 DAILY가 하나라도 있으면 → 매일 반복 알람 1개로 모두 커버.
+  const hasDailyContinuous = drugs.some(
+    (d) => d.scheduleType === "DAILY" && !d.endDate,
+  );
+  if (hasDailyContinuous) {
+    const ts = skipToday
+      ? nextDailyTimestampSkipToday(hour, minute)
+      : nextDailyTimestamp(hour, minute);
+    const id = await notifee.createTriggerNotification(
+      notif,
+      buildAlarmTrigger(ts, RepeatFrequency.DAILY),
+    );
+    return [id];
+  }
+
+  // 2) 계속 복용 WEEKLY 요일들 → 요일마다 주간 반복 알람 1개.
+  const weeklyDays = new Set<DayOfWeek>();
+  for (const d of drugs) {
+    if (d.scheduleType === "WEEKLY" && !d.endDate) {
+      for (const w of d.daysOfWeek) weeklyDays.add(w);
+    }
+  }
+  for (const w of Array.from(weeklyDays)) {
+    const weekday = WEEKDAY_INDEX[w];
+    const ts = skipToday
+      ? nextWeeklyTimestampSkipToday(hour, minute, weekday)
+      : nextWeeklyTimestamp(hour, minute, weekday);
+    const id = await notifee.createTriggerNotification(
+      notif,
+      buildAlarmTrigger(ts, RepeatFrequency.WEEKLY),
+    );
+    ids.push(id);
+  }
+
+  // 3) 기간 약(종료일 있음) → 필요한 날짜마다 1회성 알람.
+  //    위 주간 반복이 이미 커버하는 요일은 건너뜀(중복 방지).
+  const now = new Date();
+  const today0 = new Date();
+  today0.setHours(0, 0, 0, 0);
+  const oneShotDates = new Set<number>(); // 자정 timestamp로 날짜 중복 제거
+
+  for (const d of drugs) {
+    if (!d.endDate) continue;
+    const start = d.startDate ? parseDateOnly(d.startDate) : today0;
+    const end = parseDateOnly(d.endDate);
+    const from = Math.max(start.getTime(), today0.getTime());
 
     for (
-      const day = new Date(fromTime);
+      const day = new Date(from);
       day.getTime() <= end.getTime();
       day.setDate(day.getDate() + 1)
     ) {
-      if (schedule.scheduleType === "WEEKLY") {
-        const matches = schedule.daysOfWeek.some(
+      if (d.scheduleType === "WEEKLY") {
+        const matches = d.daysOfWeek.some(
           (w) => WEEKDAY_INDEX[w] === day.getDay(),
         );
         if (!matches) continue;
       }
-      const fire = new Date(day);
-      fire.setHours(hour, minute, 0, 0);
-      if (fire.getTime() <= now.getTime()) continue; // 지난 회차 skip
-      if (options?.skipToday && sameYmd(fire, now)) continue; // 오늘 복용 체크됨
+      const coveredByWeekly = Array.from(weeklyDays).some(
+        (w) => WEEKDAY_INDEX[w] === day.getDay(),
+      );
+      if (coveredByWeekly) continue;
 
-      const trigger: TimestampTrigger = {
-        type: TriggerType.TIMESTAMP,
-        timestamp: fire.getTime(),
-        alarmManager: { type: AlarmType.SET_EXACT_AND_ALLOW_WHILE_IDLE },
-      }; // repeatFrequency 없음 = 1회성
-      const id = await notifee.createTriggerNotification(
-        buildNotification(fire.getTime()),
-        trigger,
-      );
-      notificationIds.push(id);
-    }
-  } else if (schedule.scheduleType === "DAILY") {
-    const timestamp = options?.skipToday
-      ? nextDailyTimestampSkipToday(hour, minute)
-      : nextDailyTimestamp(hour, minute);
-    const trigger = buildAlarmTrigger(timestamp, RepeatFrequency.DAILY);
-    const id = await notifee.createTriggerNotification(
-      buildNotification(timestamp),
-      trigger,
-    );
-    notificationIds.push(id);
-  } else {
-    for (const dow of schedule.daysOfWeek) {
-      const weekday = WEEKDAY_INDEX[dow];
-      const timestamp = options?.skipToday
-        ? nextWeeklyTimestampSkipToday(hour, minute, weekday)
-        : nextWeeklyTimestamp(hour, minute, weekday);
-      const trigger = buildAlarmTrigger(timestamp, RepeatFrequency.WEEKLY);
-      const id = await notifee.createTriggerNotification(
-        buildNotification(timestamp),
-        trigger,
-      );
-      notificationIds.push(id);
+      const key = new Date(day);
+      key.setHours(0, 0, 0, 0);
+      oneShotDates.add(key.getTime());
     }
   }
 
-  map[schedule.id] = notificationIds;
-  await saveMap(map);
-
-  console.log(
-    `[MED-LOCAL] scheduled ${notificationIds.length} alarm(s) for scheduleId=${
-      schedule.id
-    } (${schedule.medicationName} ${schedule.scheduledTime})${
-      options?.skipToday ? " [skipToday]" : ""
-    }`,
-  );
-}
-
-/**
- * 약 일정 1개의 로컬 알람 전부 취소.
- * 매핑이 깨져있어도 OS 기준으로 scheduleId가 일치하는 trigger를 무조건 sweep.
- * 좀비 알람의 근본 차단책.
- */
-export async function cancelLocalRemindersForMedication(
-  scheduleId: number,
-): Promise<void> {
-  try {
-    const triggers = await notifee.getTriggerNotifications();
-    const targetIds = triggers
-      .filter(
-        (t) =>
-          t.notification.data?.type === "MEDICATION_REMINDER" &&
-          t.notification.data?.scheduleId === String(scheduleId),
-      )
-      .map((t) => t.notification.id)
-      .filter((id): id is string => !!id);
-
-    for (const id of targetIds) {
-      try {
-        await notifee.cancelTriggerNotification(id);
-      } catch (e) {
-        console.warn(`[MED-LOCAL] failed to cancel trigger ${id}:`, e);
-      }
-    }
-
-    const displayed = await notifee.getDisplayedNotifications();
-    for (const d of displayed) {
-      const data = d.notification.data;
-      if (
-        data?.type === "MEDICATION_REMINDER" &&
-        data?.scheduleId === String(scheduleId) &&
-        d.notification.id
-      ) {
-        try {
-          await notifee.cancelDisplayedNotification(d.notification.id);
-        } catch (e) {
-          console.warn(
-            `[MED-LOCAL] failed to cancel displayed ${d.notification.id}:`,
-            e,
-          );
-        }
-      }
-    }
-
-    if (targetIds.length > 0) {
-      console.log(
-        `[MED-LOCAL] OS-swept ${targetIds.length} trigger(s) for scheduleId=${scheduleId}`,
-      );
-    }
-  } catch (e) {
-    console.warn("[MED-LOCAL] OS sweep failed:", e);
+  for (const dateTs of Array.from(oneShotDates)) {
+    const fire = new Date(dateTs);
+    fire.setHours(hour, minute, 0, 0);
+    if (fire.getTime() <= now.getTime()) continue; // 지난 회차 skip
+    if (skipToday && sameYmd(fire, now)) continue; // 오늘 복용 완료
+    const id = await notifee.createTriggerNotification(notif, {
+      type: TriggerType.TIMESTAMP,
+      timestamp: fire.getTime(),
+      alarmManager: { type: AlarmType.SET_EXACT_AND_ALLOW_WHILE_IDLE },
+    }); // repeatFrequency 없음 = 1회성
+    ids.push(id);
   }
 
-  const map = await loadMap();
-  delete map[scheduleId];
-  await saveMap(map);
+  return ids;
 }
 
 // 동시 sync 호출 직렬화 + 중간 호출은 무시, 마지막 args만 적용
@@ -335,8 +297,9 @@ let pendingArgs: {
 let syncRunning = false;
 
 /**
- * 전체 동기화. mutex로 직렬화 + 마지막 호출만 의미 있게 처리.
- * checkedScheduleIds에 포함된 schedule은 skipToday로 등록.
+ * 전체 동기화. 같은 시각 약들을 묶어 시각마다 알람 1개씩 예약.
+ * mutex로 직렬화 + 마지막 호출만 의미 있게 처리.
+ * checkedScheduleIds: 오늘 이미 복용한 schedule id. 그 시각 약이 전부 복용 완료면 오늘 회차 skip.
  */
 export async function syncAllMedicationReminders(
   schedules: MedicationSchedule[],
@@ -354,13 +317,27 @@ export async function syncAllMedicationReminders(
       pendingArgs = null;
 
       await clearAllMedicationReminders();
-      const activeSchedules = current.filter((s) => s.active);
-      for (const schedule of activeSchedules) {
-        const skipToday = checkedIds.has(schedule.id);
-        await scheduleLocalRemindersForMedication(schedule, { skipToday });
+
+      const active = current.filter((s) => s.active);
+
+      // 같은 시각끼리 묶기
+      const byTime = new Map<string, MedicationSchedule[]>();
+      for (const s of active) {
+        const list = byTime.get(s.scheduledTime) ?? [];
+        list.push(s);
+        byTime.set(s.scheduledTime, list);
       }
+
+      const map: ReminderMap = {};
+      for (const [time, drugs] of Array.from(byTime)) {
+        const slotSkipToday = drugs.every((d) => checkedIds.has(d.id));
+        const slotIds = await scheduleSlot(time, drugs, slotSkipToday);
+        if (slotIds.length > 0) map[time] = slotIds;
+      }
+      await saveMap(map);
+
       console.log(
-        `[MED-LOCAL] sync complete — ${activeSchedules.length} schedule(s) registered (${checkedIds.size} skipToday)`,
+        `[MED-LOCAL] sync complete — ${byTime.size} time-slot(s) registered`,
       );
     }
   } finally {

@@ -15,7 +15,7 @@ import { AnalysisEmptyView } from "../../components/elderly/AnalysisEmptyView";
 import { PrescriptionEntryCard } from "../../components/elderly/PrescriptionEntryCard";
 import { WarningCardCritical } from "../../components/elderly/WarningCardCritical";
 import { WarningCardSimple } from "../../components/elderly/WarningCardSimple";
-
+import { groupPrescriptions } from "../../utils/prescription";
 import { Colors, Spacing } from "../../theme";
 import { useSelfMedicationAnalysis } from "../../hooks/useDrugSafety";
 import { sortWarningsBySeverity } from "../../utils/drugSafety";
@@ -161,7 +161,7 @@ export default function MedicationAnalysisResultScreen() {
             />
           ))}
           <PrescriptionEntryCard
-            count={data.prescriptions.length}
+            count={groupPrescriptions(data.prescriptions).length}
             onPress={goPrescriptionList}
           />
         </View>

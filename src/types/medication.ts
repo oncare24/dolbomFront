@@ -26,6 +26,8 @@ export type DayOfWeek =
 /** 복약 일정 (프론트). */
 export interface MedicationSchedule {
   id: number;
+
+  scheduleIds: number[];
   protegeId: number;
   medicationName: string;
   /** "HH:mm" — 예: "08:00" */

@@ -161,6 +161,19 @@ export default function SafetyZoneListScreen() {
 
       <AppHeader title={`${display.name}님 안전구역`} audience="guardian" />
 
+      {/* 지도: 스크롤 밖 고정 배치 (네이티브 지도 + ScrollView 충돌 회피) */}
+      {isMapReady ? (
+        <SafetyZoneMapPreview
+          ref={mapRef}
+          zones={safeZones}
+          currentLocation={currentLocation}
+        />
+      ) : (
+        <View style={styles.mapLoading}>
+          <ActivityIndicator color={Colors.brand.primary} size="large" />
+        </View>
+      )}
+
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -174,18 +187,6 @@ export default function SafetyZoneListScreen() {
           />
         }
       >
-        {isMapReady ? (
-          <SafetyZoneMapPreview
-            ref={mapRef}
-            zones={safeZones}
-            currentLocation={currentLocation}
-          />
-        ) : (
-          <View style={styles.mapLoading}>
-            <ActivityIndicator color={Colors.brand.primary} size="large" />
-          </View>
-        )}
-
         <View style={styles.body}>
           <SafetyZoneStatusBanner
             status={display.status}

@@ -10,6 +10,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { AppText } from "../common/Text";
 import { Colors, Elevation, Radius, Spacing } from "../../theme";
 import { formatAnalyzedAt } from "../../utils/drugSafety";
+import { groupPrescriptions } from "../../utils/prescription";
+
 import type {
   Prescription,
   Warning,
@@ -81,7 +83,9 @@ export function HeroStatusCard({ warnings, prescriptions, analyzedAt }: Props) {
           >
             {hasWarnings
               ? summarizeWarnings(warnings)
-              : `처방받은 약 ${prescriptions.length}종 분석함`}
+              : `처방받은 약 ${
+                  groupPrescriptions(prescriptions).length
+                }종 분석함`}
           </AppText>
         </View>
       </View>
