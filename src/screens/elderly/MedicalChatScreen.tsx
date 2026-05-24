@@ -118,11 +118,10 @@ export default function MedicalChatScreen() {
     setIsWaitingBot(true);
 
     try {
-      // 마지막 턴 직전이면 위치를 미리 받아둠 (백엔드에 함께 전달)
-      const userMessageCount =
-        messages.filter((m) => m.role === "user").length + 1;
-      const isFinalTurn = userMessageCount >= 3;
-      const location = isFinalTurn ? await tryGetCurrentLocation() : undefined;
+      // 적응형 문진: LLM이 첫 턴에 바로 done=true 할 수 있으므로
+      // 매 턴 위치를 미리 확보해 둠 (캐시되어 부담 적음).
+      // 위치 실패 시 undefined → 백엔드 폴백 체인(안전구역 등)이 동작.
+      const location = await tryGetCurrentLocation();
 
       const res = await sendMessage(
         {

@@ -15,14 +15,14 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://nontransposable-neda-remorselessly.ngrok-free.dev"
+        "EXPO_PUBLIC_API_BASE_URL": "https://channel-carrousel-rebound.ngrok-free.dev"
       }
     },
     "production": {
       "channel": "production",
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://nontransposable-neda-remorselessly.ngrok-free.dev"
+        "EXPO_PUBLIC_API_BASE_URL": "https://channel-carrousel-rebound.ngrok-free.dev"
       }
     }
   },
