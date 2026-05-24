@@ -28,7 +28,8 @@ import { getMedicationTodayStatus } from "../../utils/medicationStatus";
 import { todayDateString } from "../../utils/medicationSummary";
 import { useAuthStore } from "../../stores/authStore";
 import { useMyWards } from "../../hooks/useMyWards";
-
+import { groupSchedules } from "../../utils/medicationGroup";
+import { MedicationGroupCard } from "../../components/medication/MedicationGroupCard";
 import { Colors, Spacing } from "../../theme";
 import type { RootStackParamList } from "../../types/navigation";
 
@@ -64,12 +65,22 @@ export default function MedicationListScreen() {
   const { data: todayLogs = [] } = useMedicationLogsByDate(protegeId, today, {
     enabled: protegeId > 0,
   });
+
   const sortedSchedules = useMemo(
     () =>
       [...schedules]
         .filter((s) => s.active)
         .sort((a, b) => a.scheduledTime.localeCompare(b.scheduledTime)),
     [schedules],
+  );
+
+  const activeSchedules = useMemo(
+    () => schedules.filter((s) => s.active),
+    [schedules],
+  );
+  const groups = useMemo(
+    () => groupSchedules(activeSchedules),
+    [activeSchedules],
   );
 
   const [refreshing, setRefreshing] = useState(false);
@@ -91,8 +102,7 @@ export default function MedicationListScreen() {
   };
 
   const isInitialLoading = isLoading && schedules.length === 0;
-  const hasData = sortedSchedules.length > 0;
-
+  const hasData = groups.length > 0;
   return (
     <>
       <StatusBar
@@ -126,15 +136,27 @@ export default function MedicationListScreen() {
             />
           ) : (
             <View style={styles.list}>
-              {sortedSchedules.map((schedule) => (
-                <MedicationScheduleCard
-                  key={schedule.id}
-                  schedule={schedule}
-                  audience={audience}
-                  todayStatus={getMedicationTodayStatus(schedule, todayLogs)}
-                  onPress={() => handleCardPress(schedule.id)}
-                />
-              ))}
+              {groups.map((g) => {
+                const takenToday = g.schedules.filter(
+                  (s) =>
+                    getMedicationTodayStatus(s, todayLogs)?.kind === "TAKEN",
+                ).length;
+                return (
+                  <MedicationGroupCard
+                    key={g.key}
+                    group={g}
+                    audience={audience}
+                    takenToday={takenToday}
+                    total={g.times.length}
+                    onPress={() =>
+                      navigation.navigate("MedicationEdit", {
+                        protegeId,
+                        scheduleId: g.schedules[0].id, // 파트2에서 이 약 전체를 불러옴
+                      })
+                    }
+                  />
+                );
+              })}
             </View>
           )}
         </ScreenContainer>

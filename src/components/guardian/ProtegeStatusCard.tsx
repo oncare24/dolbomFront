@@ -47,6 +47,13 @@ const STATUS_MAP: Record<ProtegeStatusType, StatusStyle> = {
     label: "안전구역 밖",
     labelColor: Colors.semantic.warning,
   },
+  active: {
+    barColor: Colors.brand.primary,
+    iconName: "location-outline",
+    iconColor: Colors.brand.primary,
+    label: "위치 보고 중",
+    labelColor: Colors.brand.primary,
+  },
   disconnected: {
     barColor: Colors.gray[500],
     iconName: "cloud-offline",
@@ -96,7 +103,11 @@ export function ProtegeStatusCard({ protege, onPress }: Props) {
       onPressOut={handlePressOut}
       android_ripple={{ color: Colors.gray[200], borderless: false }}
       accessibilityRole="button"
-      accessibilityLabel={`${protege.name}${protege.relationship ? " " + protege.relationship : ""}, ${status.label}, ${protege.locationLabel}, 마지막 보고 ${formatRelativeMinutes(protege.lastReportedMinutesAgo)}`}
+      accessibilityLabel={`${protege.name}${
+        protege.relationship ? " " + protege.relationship : ""
+      }, ${status.label}, ${
+        protege.locationLabel
+      }, 마지막 보고 ${formatRelativeMinutes(protege.lastReportedMinutesAgo)}`}
       style={[styles.card, animatedStyle]}
     >
       {/* 좌측 컬러 바 (상태 강조) */}
@@ -174,7 +185,9 @@ export function ProtegeStatusCard({ protege, onPress }: Props) {
           style={styles.time}
         >
           {isDisconnected
-            ? `마지막 보고 ${formatRelativeMinutes(protege.lastReportedMinutesAgo)}`
+            ? `마지막 보고 ${formatRelativeMinutes(
+                protege.lastReportedMinutesAgo,
+              )}`
             : formatRelativeMinutes(protege.lastReportedMinutesAgo)}
         </AppText>
       </View>

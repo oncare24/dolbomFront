@@ -24,6 +24,9 @@ export interface Prescription {
   resDailyDosesNumber: string;
   resTotalDosingdays: string;
   resPrescribeOrg: string;
+  resManufactureDate: string; // ← 추가 (YYYYMMDD)
+  resPrescribeNo: string; // ← 추가
+  resDrugCode: string; // ← 추가
 }
 
 /** 심각도 — UI 색상 매핑. */
@@ -58,12 +61,18 @@ export interface CodefConfirmInput extends CodefAuthInput {
   jti: string;
   twoWayTimestamp: number;
 }
+export interface AutoRegisterResult {
+  registered: string[];
+  skipped: string[];
+  duplicates: string[];
+}
 
 /** 분석 결과 (조회 응답 / confirm 직후 응답 공통). */
 export interface MedicationAnalysis {
   warnings: Warning[];
   prescriptions: Prescription[];
   analyzedAt: string; // ISO datetime
+  autoRegisterResult?: AutoRegisterResult; // ← 추가
 }
 /** 인지 UX(배너/배지)용 신선도. */
 export type AnalysisFreshness = "FRESH" | "STALE" | "OUTDATED";

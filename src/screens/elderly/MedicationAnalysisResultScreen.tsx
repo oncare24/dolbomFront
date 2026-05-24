@@ -8,7 +8,7 @@ import { AppHeader } from "../../components/common/Header";
 import { AppText } from "../../components/common/Text";
 import { BottomActionBar } from "../../components/common/BottomActionBar";
 import { PrimaryButton, SecondaryButton } from "../../components/common/Button";
-
+import { MedicationAutoRegisterCard } from "../../components/elderly/MedicationAutoRegisterCard";
 import { HeroStatusCard } from "../../components/elderly/HeroStatusCard";
 import { AnalysisDisclaimerNote } from "../../components/elderly/AnalysisDisclaimerNote";
 import { AnalysisEmptyView } from "../../components/elderly/AnalysisEmptyView";
@@ -137,6 +137,9 @@ export default function MedicationAnalysisResultScreen() {
           prescriptions={data.prescriptions}
           analyzedAt={data.analyzedAt}
         />
+        {data.autoRegisterResult && (
+          <MedicationAutoRegisterCard result={data.autoRegisterResult} />
+        )}
         <AnalysisDisclaimerNote />
         <View style={styles.cardList}>
           {criticalWarnings.map((w, i) => (

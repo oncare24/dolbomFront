@@ -33,6 +33,7 @@ import { parseTmapResponse } from "../../utils/tmapCardParser";
 import {
   haversine,
   distanceToPath,
+  passedCoordsUpTo,
   formatDistance,
   formatDuration,
 } from "../../utils/haversine";
@@ -41,9 +42,9 @@ import { shouldShowMarker } from "../../utils/markerFilter";
 import { Colors, Spacing, Radius, Touch } from "../../theme";
 
 // ── 상수 ──
-const CARD_ADVANCE_THRESHOLD_M = 35; // 카드 전환 임계값
-const NEAR_POINT_FOR_PASS_M = 50; // "근접" 판정 (지점 통과 보조)
-const DISTANCE_INCREASE_TOLERANCE_M = 10; // 거리 증가 = 지점 통과
+const CARD_ADVANCE_THRESHOLD_M = 20; // 도착 지점 도달 판정 (목적지 전용)
+const NEAR_POINT_FOR_PASS_M = 50; // 통과 감지 범위 (이탈 50m와 짝)
+const DISTANCE_INCREASE_TOLERANCE_M = 6; // 최소 거리에서 이만큼 멀어지면 통과
 const OFF_ROUTE_THRESHOLD_M = 50; // 경로 이탈 거리
 const OFF_ROUTE_REROUTE_DEBOUNCE_MS = 3000; // 3초 지속 시 재탐색
 const GPS_ACCURACY_THRESHOLD_M = 100;
@@ -83,7 +84,7 @@ export default function NavigationScreen({
   const onRerouteRef = useRef(onReroute);
   const locationSubRef = useRef<Location.LocationSubscription | null>(null);
   const mapRef = useRef<any>(null);
-  const prevDistRef = useRef<number>(Infinity);
+  const minDistRef = useRef<number>(Infinity);
   const offRouteSinceRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -98,7 +99,7 @@ export default function NavigationScreen({
     setRoute(parsed);
     cardIndexRef.current = 0;
     setCurrentCardIndex(0);
-    prevDistRef.current = Infinity;
+    minDistRef.current = Infinity;
     offRouteSinceRef.current = null;
     setIsOffRoute(false);
 
@@ -169,11 +170,12 @@ export default function NavigationScreen({
         setCurrentHeading(coords.heading);
       }
 
-      // 카메라 추적 (네이버지도 follow 모드)
+      // 카메라 추적 (위치 + 진행방향 위로)
       mapRef.current?.animateCameraTo({
         latitude,
         longitude,
         zoom: MAP_ZOOM,
+        bearing: currentHeading,
         duration: CAMERA_DURATION_MS,
       });
 
@@ -181,48 +183,52 @@ export default function NavigationScreen({
       const idx = cardIndexRef.current;
       if (idx >= cards.length) return;
 
+      // 지금 다가가는 안내 지점 = 현재 카드의 지점
       const currentCard = cards[idx];
-      const targetCard = idx + 1 < cards.length ? cards[idx + 1] : currentCard;
 
       const dist = haversine(
         latitude,
         longitude,
-        targetCard.point.latitude,
-        targetCard.point.longitude,
+        currentCard.point.latitude,
+        currentCard.point.longitude,
       );
       setDistanceToNext(dist);
 
-      // 2. 카드 전환 판정: 임계값 진입 OR 거리 증가(지나친 것)
-      const prevDist = prevDistRef.current;
+      // 지점까지 가장 가까웠던 거리 기록 (통과 판정 기준점)
+      if (dist < minDistRef.current) minDistRef.current = dist;
+
+      // 2. 카드 전환 판정
+      //    일반 안내: 지점에 가장 가까워졌다가 멀어지면 "통과"로 보고 전환 (표준 내비 방식)
+      //    도착 지점: 반경 안에 들어오면 도착으로 보고 종료
       const arrived = dist < CARD_ADVANCE_THRESHOLD_M;
       const passed =
-        prevDist < NEAR_POINT_FOR_PASS_M &&
-        dist > prevDist + DISTANCE_INCREASE_TOLERANCE_M;
+        minDistRef.current < NEAR_POINT_FOR_PASS_M &&
+        dist > minDistRef.current + DISTANCE_INCREASE_TOLERANCE_M;
 
-      if ((arrived || passed) && idx + 1 < cards.length) {
-        const nextIdx = idx + 1;
-        cardIndexRef.current = nextIdx;
-        setCurrentCardIndex(nextIdx);
-        prevDistRef.current = Infinity;
-
-        speakCard(cards[nextIdx]);
-
-        if (cards[nextIdx].pointType === "end") {
+      if (currentCard.pointType === "end") {
+        if (arrived) {
+          cardIndexRef.current = cards.length; // 이후 업데이트 무시
           setTimeout(
             () => onNavigationEndRef.current?.(),
             ARRIVAL_END_DELAY_MS,
           );
         }
-      } else {
-        prevDistRef.current = dist;
+      } else if (passed && idx + 1 < cards.length) {
+        const nextIdx = idx + 1;
+        cardIndexRef.current = nextIdx;
+        setCurrentCardIndex(nextIdx);
+        minDistRef.current = Infinity;
+        speakCard(cards[nextIdx]);
       }
 
       // 3. 경로 이탈 감지 + 디바운스 재탐색
-      if (currentCard.pathCoords.length > 0) {
+      //    지금 걷는 구간 = 다가가는 지점(idx)으로 들어오는 구간 = cards[idx-1]
+      const walkedCard = idx > 0 ? cards[idx - 1] : currentCard;
+      if (walkedCard.pathCoords.length > 0) {
         const pathDist = distanceToPath(
           latitude,
           longitude,
-          currentCard.pathCoords,
+          walkedCard.pathCoords,
         );
         const off = pathDist > OFF_ROUTE_THRESHOLD_M;
 
@@ -248,7 +254,7 @@ export default function NavigationScreen({
 
   function speakCard(card: NavigationCard) {
     Speech.stop();
-    Speech.speak(card.description || card.turnLabel, {
+    Speech.speak(card.speech || card.actionLabel, {
       language: TTS_LANGUAGE,
       rate: TTS_RATE,
     });
@@ -266,12 +272,12 @@ export default function NavigationScreen({
   }
 
   function getPassedCoords(): { latitude: number; longitude: number }[] {
-    if (!route || currentCardIndex === 0) return [];
-    const coords: { latitude: number; longitude: number }[] = [];
-    for (let i = 0; i < currentCardIndex; i++) {
-      coords.push(...route.cards[i].pathCoords);
-    }
-    return coords;
+    if (!route || !currentLocation) return [];
+    return passedCoordsUpTo(
+      currentLocation.latitude,
+      currentLocation.longitude,
+      route.fullPath,
+    );
   }
 
   if (!route) {
@@ -363,7 +369,7 @@ export default function NavigationScreen({
             key="current-location"
             latitude={currentLocation.latitude}
             longitude={currentLocation.longitude}
-            angle={currentHeading}
+            angle={0}
             width={48}
             height={48}
             anchor={{ x: 0.5, y: 0.5 }}
@@ -449,7 +455,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: Colors.brand.primary,
+    backgroundColor: Colors.semantic.warning,
     borderWidth: 4,
     borderColor: "#FFFFFF",
     justifyContent: "center",

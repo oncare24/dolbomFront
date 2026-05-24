@@ -35,6 +35,8 @@ export interface MedicationSchedule {
   daysOfWeek: DayOfWeek[];
   active: boolean;
   createdAt: string;
+  startDate?: string | null; // "YYYY-MM-DD" — 기간 약만, 없으면 null
+  endDate?: string | null; // "YYYY-MM-DD" — 기간 약만, 없으면 null
 }
 
 /** 복약 기록 (프론트). */
@@ -60,6 +62,8 @@ export interface CreateMedicationScheduleInput {
   scheduledTime: string;
   scheduleType: MedicationScheduleType;
   daysOfWeek: DayOfWeek[];
+  startDate?: string | null; // "YYYY-MM-DD" — 계속 복용이면 null
+  endDate?: string | null;
 }
 
 export interface UpdateMedicationScheduleInput {
@@ -68,6 +72,8 @@ export interface UpdateMedicationScheduleInput {
   scheduleType: MedicationScheduleType;
   daysOfWeek: DayOfWeek[];
   active: boolean;
+  startDate?: string | null; // 추가
+  endDate?: string | null; // 추가s
 }
 
 export interface TakeMedicationInput {

@@ -13,7 +13,7 @@ import type {
   NavigationRoute,
 } from "../types/navigation";
 import { getTurnLabel, parsePointType } from "../constants/turnTypeMap";
-
+import { buildSeniorActionLabel, buildSeniorSpeech } from "./seniorGuide";
 // ── 타입 가드 ──
 
 function isPointFeature(f: TmapFeature): f is TmapPointFeature {
@@ -76,6 +76,13 @@ export function parseTmapResponse(response: TmapResponse): NavigationRoute {
       totalDuration += duration;
     }
 
+    const landmark =
+      point.properties.facilityName ||
+      point.properties.nearPoiName ||
+      point.properties.intersectionName ||
+      point.properties.name ||
+      "";
+
     cards.push({
       index: cardIndex,
       point: pointCoord,
@@ -83,10 +90,13 @@ export function parseTmapResponse(response: TmapResponse): NavigationRoute {
       turnLabel: getTurnLabel(point.properties.turnType),
       description: point.properties.description,
       name: point.properties.name || point.properties.intersectionName || "",
+      landmark,
+      actionLabel: buildSeniorActionLabel(point.properties.turnType),
+      speech: buildSeniorSpeech(point.properties.turnType, landmark),
       pathCoords,
       distance,
       duration,
-      pointType: parsePointType(point.properties.pointType),
+      pointType: parsePointType(point.properties.pointType ?? ""),
     });
 
     cardIndex++;
@@ -102,7 +112,9 @@ export function logCards(cards: NavigationCard[]): void {
     const dist = card.distance > 0 ? `${card.distance}m` : "-";
     console.log(
       `[${card.index}] ${card.turnLabel} | ${card.description} | ${dist} | ` +
-        `(${card.point.latitude.toFixed(5)}, ${card.point.longitude.toFixed(5)})`,
+        `(${card.point.latitude.toFixed(5)}, ${card.point.longitude.toFixed(
+          5,
+        )})`,
     );
   });
 }
