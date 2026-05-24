@@ -5,6 +5,7 @@
 
 export type NotificationType =
   | "ZONE_EXIT"
+  | "ZONE_ENTER"
   | "DEVICE_DISCONNECTED"
   | "WARD_INVITATION"
   | "SOS"

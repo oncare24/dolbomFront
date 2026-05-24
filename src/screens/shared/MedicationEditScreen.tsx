@@ -144,7 +144,7 @@ export default function MedicationEditScreen() {
               repId: s.id,
               rowIds: [],
             };
-            e.rowIds.push(s.id);
+            e.rowIds.push(...s.scheduleIds);
             existingByTime.set(s.scheduledTime, e);
           }
 
@@ -245,7 +245,9 @@ export default function MedicationEditScreen() {
         onPress: async () => {
           try {
             for (const s of group.schedules) {
-              await deleteMutation.mutateAsync({ scheduleId: s.id, protegeId });
+              for (const id of s.scheduleIds) {
+                await deleteMutation.mutateAsync({ scheduleId: id, protegeId });
+              }
             }
             toast.show({ message: "약을 삭제했어요", variant: "success" });
             navigation.goBack();
