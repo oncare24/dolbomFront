@@ -1,11 +1,14 @@
 // 처방받은 약 목록 화면.
-// 분석 결과 화면에서 PrescriptionEntryCard 탭으로 진입.
-// useSelfMedicationAnalysis 재호출 → react-query 캐시 활용(네트워크 0번).
-// groupPrescriptions로 동일 약 + 동일 복용법 자동 합침.
+// 분석 결과 화면에서 진입. 경고의 "약 이름" 탭으로 들어오면
+// highlightDrugName로 해당 약 카드로 스크롤 + 잠깐 강조.
 
-import React from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import React, { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
+import {
+  useNavigation,
+  useRoute,
+  type RouteProp,
+} from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { ScreenContainer } from "../../components/common/Layout";
@@ -15,21 +18,48 @@ import { BottomActionBar } from "../../components/common/BottomActionBar";
 import { PrimaryButton } from "../../components/common/Button";
 import { PrescriptionCardElderly } from "../../components/elderly/PrescriptionCardElderly";
 
-import { Colors, Spacing } from "../../theme";
+import { Colors, Radius, Spacing } from "../../theme";
 import { useSelfMedicationAnalysis } from "../../hooks/useDrugSafety";
-import { groupPrescriptions } from "../../utils/prescription";
+import { cleanField, groupPrescriptions } from "../../utils/prescription";
 import type { RootStackParamList } from "../../types/navigation";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "PrescriptionList">;
+type Route = RouteProp<RootStackParamList, "PrescriptionList">;
 
 export default function PrescriptionListScreen() {
   const navigation = useNavigation<Nav>();
+  const route = useRoute<Route>();
+  const highlightName = route.params?.highlightDrugName
+    ? cleanField(route.params.highlightDrugName)
+    : null;
+
   const { data, isLoading } = useSelfMedicationAnalysis();
+
+  const scrollRef = useRef<ScrollView>(null);
+  const listYRef = useRef(0);
+  const didScrollRef = useRef(false);
+  const [highlightedKey, setHighlightedKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!highlightName) return;
+    setHighlightedKey(highlightName);
+    const t = setTimeout(() => setHighlightedKey(null), 2500);
+    return () => clearTimeout(t);
+  }, [highlightName]);
 
   const goBack = () => {
     if (navigation.canGoBack()) {
       navigation.goBack();
     }
+  };
+
+  const scrollToTarget = (cardY: number) => {
+    if (didScrollRef.current) return;
+    didScrollRef.current = true;
+    const y = Math.max(0, listYRef.current + cardY - 12);
+    requestAnimationFrame(() =>
+      scrollRef.current?.scrollTo({ y, animated: true }),
+    );
   };
 
   // ─── 로딩 ───
@@ -50,7 +80,7 @@ export default function PrescriptionListScreen() {
 
   const groups = groupPrescriptions(data?.prescriptions ?? []);
 
-  // ─── 빈 (안전 가드, 정상 흐름에서는 거의 없음) ───
+  // ─── 빈 ───
   if (groups.length === 0) {
     return (
       <View style={styles.root}>
@@ -75,7 +105,12 @@ export default function PrescriptionListScreen() {
   return (
     <View style={styles.root}>
       <AppHeader title="처방받은 약" audience="elderly" onBackPress={goBack} />
-      <ScreenContainer audience="elderly" scrollable paddingTop={Spacing.md}>
+      <ScreenContainer
+        ref={scrollRef}
+        audience="elderly"
+        scrollable
+        paddingTop={Spacing.md}
+      >
         <AppText
           variant="caption"
           audience="elderly"
@@ -84,10 +119,29 @@ export default function PrescriptionListScreen() {
         >
           총 {groups.length}종
         </AppText>
-        <View style={styles.list}>
-          {groups.map((g, i) => (
-            <PrescriptionCardElderly key={i} group={g} />
-          ))}
+        <View
+          style={styles.list}
+          onLayout={(e) => {
+            listYRef.current = e.nativeEvent.layout.y;
+          }}
+        >
+          {groups.map((g, i) => {
+            const key = cleanField(g.prescription.resDrugName);
+            const isTarget = highlightName != null && key === highlightName;
+            return (
+              <View
+                key={i}
+                onLayout={
+                  isTarget
+                    ? (e) => scrollToTarget(e.nativeEvent.layout.y)
+                    : undefined
+                }
+                style={highlightedKey === key ? styles.highlight : undefined}
+              >
+                <PrescriptionCardElderly group={g} />
+              </View>
+            );
+          })}
         </View>
       </ScreenContainer>
       <BottomActionBar audience="elderly">
@@ -114,5 +168,10 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: Spacing.md,
+  },
+  highlight: {
+    borderWidth: 2,
+    borderColor: Colors.semantic.info,
+    borderRadius: Radius.xl,
   },
 });

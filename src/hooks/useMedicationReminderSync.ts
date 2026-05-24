@@ -1,13 +1,14 @@
-// 어머니 로그인 시 서버 약 일정과 로컬 알림 동기화.
-//
-// App.tsx에서 마운트. role=elderly + 인증된 경우에만 활성.
-// schedules 캐시가 갱신될 때마다 자동 동기화 → 보호자가 어머니 약 추가/수정해도
-// 어머니 앱이 schedules invalidate되는 시점에 알림 재등록.
+// 어머니 로그인 시 서버 약 일정 + 오늘 복용 로그를 로컬 알림과 동기화.
+// 오늘 이미 복용한 schedule은 skipToday=true로 등록 → 그 회차 알람 안 울림.
 
 import { useEffect } from "react";
 import { useAuthStore } from "../stores/authStore";
-import { useMedicationSchedules } from "./useMedications";
+import {
+  useMedicationLogsByDate,
+  useMedicationSchedules,
+} from "./useMedications";
 import { syncAllMedicationReminders } from "../services/medicationReminderService";
+import { nowLocalDateTimeIso } from "../utils/medicationSummary";
 
 export function useMedicationReminderSync() {
   const role = useAuthStore((s) => s.user?.role);
@@ -18,10 +19,22 @@ export function useMedicationReminderSync() {
     enabled,
   });
 
+  const today = nowLocalDateTimeIso().slice(0, 10);
+  const { data: todayLogs } = useMedicationLogsByDate(userId ?? 0, today, {
+    enabled,
+  });
+
   useEffect(() => {
     if (!enabled || !schedules) return;
-    syncAllMedicationReminders(schedules).catch((e) =>
+    // MedicationLog.scheduleId는 number | null (일정 없이 직접 기록한 로그 대비).
+    // null인 로그는 skipToday 판단 대상이 아니므로 필터.
+    const checkedIds = new Set<number>(
+      (todayLogs ?? [])
+        .map((l) => l.scheduleId)
+        .filter((id): id is number => id !== null),
+    );
+    syncAllMedicationReminders(schedules, checkedIds).catch((e) =>
       console.warn("[MED-LOCAL] sync failed:", e),
     );
-  }, [enabled, schedules]);
+  }, [enabled, schedules, todayLogs]);
 }

@@ -6,7 +6,7 @@
 // [이상탐지] InactivityAnalysisBanner 추가 + TodaySummaryRow 의 "이상 감지" 카드 연결.
 
 import React, { useCallback, useState } from "react";
-import { StatusBar } from "react-native";
+import { Alert, StatusBar, StyleSheet, View } from "react-native";
 import {
   useNavigation,
   useRoute,
@@ -16,13 +16,16 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { ScreenContainer } from "../../components/common/Layout";
 import { AppHeader } from "../../components/common/Header";
+import { DangerButton } from "../../components/common/Button";
+import { useToast } from "../../components/common/Toast";
 
 import { ProtegeHeroCard } from "../../components/guardian/ProtegeHeroCard";
 import { ProtegeLocationCard } from "../../components/guardian/ProtegeLocationCard";
 import { TodaySummaryRow } from "../../components/guardian/TodaySummaryRow";
 import { ProtegeMedicationAnalysisBanner } from "../../components/guardian/ProtegeMedicationAnalysisBanner";
 import { InactivityAnalysisBanner } from "../../components/guardian/InactivityAnalysisBanner";
-import { useMyWards } from "../../hooks/useMyWards";
+import { useMyWards, useUnlinkWard } from "../../hooks/useMyWards";
+
 import { useSafetyZones } from "../../hooks/useSafetyZones";
 import {
   useMedicationLogsByDate,
@@ -58,6 +61,7 @@ function toAnomalyCount(
 export default function ProtegeDetailScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
+  const toast = useToast();
 
   const protegeId = route.params.protegeId;
   const today = todayDateString();
@@ -80,6 +84,8 @@ export default function ProtegeDetailScreen() {
 
   const medSummary = buildMedicationDailySummary(schedules, todayLogs);
   const anomalyCount = toAnomalyCount(analysisState?.inactivity?.statusCode);
+
+  const unlinkMutation = useUnlinkWard();
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
@@ -110,6 +116,37 @@ export default function ProtegeDetailScreen() {
   };
 
   const displayName = protege?.name ?? "피보호자";
+
+  const handleUnlink = () => {
+    Alert.alert(
+      "연결 해제",
+      `${displayName}님과의 연결을 해제할까요?\n해제하면 위치·복약 등 모니터링이 모두 중단돼요.`,
+      [
+        { text: "취소", style: "cancel" },
+        {
+          text: "연결 해제",
+          style: "destructive",
+          onPress: () => {
+            unlinkMutation.mutate(protegeId, {
+              onSuccess: () => {
+                toast.show({
+                  message: `${displayName}님과의 연결을 해제했어요`,
+                  variant: "info",
+                });
+                navigation.goBack();
+              },
+              onError: (err: any) => {
+                toast.show({
+                  message: err?.message ?? "연결 해제에 실패했어요",
+                  variant: "error",
+                });
+              },
+            });
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <>
@@ -146,12 +183,27 @@ export default function ProtegeDetailScreen() {
           protegeName={displayName}
           onPress={handleMedicationAnalysis}
         />
-
         <InactivityAnalysisBanner
           protegeId={protegeId}
           protegeName={displayName}
         />
+
+        <View style={styles.unlinkSection}>
+          <DangerButton
+            label="연결 해제"
+            audience="guardian"
+            onPress={handleUnlink}
+            loading={unlinkMutation.isPending}
+          />
+        </View>
       </ScreenContainer>
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  unlinkSection: {
+    marginTop: Spacing.xl,
+    marginBottom: Spacing.lg,
+  },
+});

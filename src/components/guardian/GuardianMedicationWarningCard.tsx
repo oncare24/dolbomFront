@@ -16,9 +16,11 @@ import type {
   WarningType,
 } from "../../types/drugSafety";
 import { isIndirectRisk } from "../../utils/drugSafety";
+import { DrugNameChips } from "../common/DrugNameChips";
 
 interface Props {
   warning: Warning;
+  onPressDrug?: (drugName: string) => void;
 }
 
 const TYPE_LABEL: Record<WarningType, string> = {
@@ -71,7 +73,7 @@ function severityVisual(severity: WarningSeverity): SeverityVisual {
   }
 }
 
-export function GuardianMedicationWarningCard({ warning }: Props) {
+export function GuardianMedicationWarningCard({ warning, onPressDrug }: Props) {
   const visual = severityVisual(warning.severity);
   const typeLabel = TYPE_LABEL[warning.type] ?? "주의";
   const indirect = isIndirectRisk(warning);
@@ -124,6 +126,25 @@ export function GuardianMedicationWarningCard({ warning }: Props) {
         <AppText variant="body" audience="guardian" style={styles.explanation}>
           {warning.explanation}
         </AppText>
+
+        {/* 관련 약 (탭 가능) */}
+        {warning.involvedDrugNames?.length > 0 && (
+          <View style={styles.section}>
+            <AppText
+              variant="caption"
+              audience="guardian"
+              color="secondary"
+              style={styles.sectionLabel}
+            >
+              관련 약
+            </AppText>
+            <DrugNameChips
+              names={warning.involvedDrugNames}
+              audience="guardian"
+              onPressDrug={onPressDrug}
+            />
+          </View>
+        )}
 
         {/* 관련 성분 칩 */}
         {warning.involvedIngredients.length > 0 && (

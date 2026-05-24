@@ -47,7 +47,7 @@ export type RootStackParamList = {
   MedicationAnalysisForm: undefined;
   MedicationAnalysisWaiting: undefined;
   MedicationAnalysisResult: undefined;
-  PrescriptionList: undefined;
+  PrescriptionList: { highlightDrugName?: string } | undefined;
 
   // ─── 튜토리얼 화면 (mock 데이터로 시연, 실제 API 호출 없음) ───
   TutorialHome: undefined;
@@ -89,10 +89,13 @@ export interface NavigationCard {
   turnLabel: string;
   description: string;
   name: string;
+  landmark: string;
+  actionLabel: string;
+  speech: string;
   pathCoords: { latitude: number; longitude: number }[];
   distance: number;
   duration: number;
-  pointType?: "start" | "end" | "via";
+  pointType?: "start" | "end" | "waypoint" | "normal";
 }
 
 export interface NavigationRoute {

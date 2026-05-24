@@ -49,6 +49,13 @@ function statusInfo(status: ProtegeStatusType): {
         fg: Colors.semantic.warning,
         icon: "warning",
       };
+    case "active":
+      return {
+        label: "위치 보고 중",
+        bg: Colors.brand.primaryLight,
+        fg: Colors.brand.primary,
+        icon: "location-outline",
+      };
     case "disconnected":
       return {
         label: "연결 끊김",

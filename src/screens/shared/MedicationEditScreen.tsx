@@ -1,5 +1,6 @@
 // src/screens/shared/MedicationEditScreen.tsx
-// 알림 토글 UI 카드 통째로 제거. active는 폼 외에서 기존 값 그대로 전달.
+// 묶음 편집: 탭한 약의 같은 그룹(이름·주기·기간) 전체를 불러와 시간 목록으로 편집.
+// 저장 시 새 시간=등록 / 뺀 시간=삭제 / 남은 시간=수정. 약 삭제=그룹 전체 삭제.
 
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { Alert, StatusBar, StyleSheet, View } from "react-native";
@@ -19,8 +20,8 @@ import { AppTextInput } from "../../components/common/Input";
 import { PrimaryButton, DangerButton } from "../../components/common/Button";
 import { useToast } from "../../components/common/Toast";
 import { BottomActionBar } from "../../components/common/BottomActionBar";
-
-import { TimePickerField } from "../../components/medication/TimePickerField";
+import { MedicationPeriodPicker } from "../../components/medication/MedicationPeriodPicker";
+import { MedicationTimesField } from "../../components/medication/MedicationTimesField";
 import { ScheduleTypePicker } from "../../components/medication/ScheduleTypePicker";
 import { DayOfWeekPicker } from "../../components/medication/DayOfWeekPicker";
 
@@ -35,6 +36,7 @@ import {
   medicationSchema,
   type MedicationFormValues,
 } from "../../schemas/medicationSchema";
+import { groupSchedules } from "../../utils/medicationGroup";
 
 import { ApiException } from "../../services/api";
 import { Colors, Elevation, Radius, ScreenPadding, Spacing } from "../../theme";
@@ -61,10 +63,15 @@ export default function MedicationEditScreen() {
   const { data: schedules = [] } = useMedicationSchedules(protegeId, {
     enabled: protegeId > 0,
   });
-  const existing = useMemo(
-    () => (isEdit ? schedules.find((s) => s.id === scheduleId) : undefined),
-    [isEdit, scheduleId, schedules],
-  );
+
+  // 탭한 약이 속한 그룹(같은 이름·주기·기간) 전체.
+  const group = useMemo(() => {
+    if (!isEdit || scheduleId === undefined) return undefined;
+    const active = schedules.filter((s) => s.active);
+    return groupSchedules(active).find((g) =>
+      g.schedules.some((s) => s.id === scheduleId),
+    );
+  }, [isEdit, scheduleId, schedules]);
 
   const createMutation = useCreateMedicationSchedule();
   const updateMutation = useUpdateMedicationSchedule();
@@ -82,50 +89,116 @@ export default function MedicationEditScreen() {
     mode: "onChange",
     defaultValues: {
       medicationName: "",
-      scheduledTime: "",
+      scheduledTimes: [],
       scheduleType: "DAILY",
       daysOfWeek: [],
+      periodType: "CONTINUOUS",
     },
   });
 
   const hasReset = useRef(false);
   useEffect(() => {
-    if (!isEdit || hasReset.current || !existing) return;
+    if (!isEdit || hasReset.current || !group) return;
     hasReset.current = true;
     reset({
-      medicationName: existing.medicationName,
-      scheduledTime: existing.scheduledTime,
-      scheduleType: existing.scheduleType,
-      daysOfWeek: existing.daysOfWeek,
+      medicationName: group.medicationName,
+      scheduledTimes: group.times,
+      scheduleType: group.scheduleType,
+      daysOfWeek: group.daysOfWeek,
+      periodType: group.endDate ? "RANGED" : "CONTINUOUS",
+      startDate: group.startDate ?? undefined,
+      endDate: group.endDate ?? undefined,
     });
-  }, [isEdit, existing, reset]);
+  }, [isEdit, group, reset]);
 
   const scheduleType = watch("scheduleType");
 
   const onSubmit = useCallback(
     async (data: MedicationFormValues) => {
+      if (isEdit && !group) {
+        toast.show({
+          message: "약 정보를 불러오는 중이에요",
+          variant: "error",
+        });
+        return;
+      }
       try {
-        if (isEdit && scheduleId !== undefined) {
-          await updateMutation.mutateAsync({
-            scheduleId,
-            input: {
-              medicationName: data.medicationName,
-              scheduledTime: data.scheduledTime,
-              scheduleType: data.scheduleType,
-              daysOfWeek: data.daysOfWeek,
-              // active는 UI에 노출하지 않음. 기존 값 그대로 전송 (없으면 true).
-              active: existing?.active ?? true,
-            },
-          });
+        const period =
+          data.periodType === "RANGED"
+            ? {
+                startDate: data.startDate ?? null,
+                endDate: data.endDate ?? null,
+              }
+            : { startDate: null, endDate: null };
+        const daysList = data.scheduleType === "WEEKLY" ? data.daysOfWeek : [];
+        const newTimes = [...new Set(data.scheduledTimes)];
+
+        if (isEdit && group) {
+          // 시간별 기존 행 매핑 (요일 약은 한 시간에 행이 여러 개)
+          const existingByTime = new Map<
+            string,
+            { repId: number; rowIds: number[] }
+          >();
+          for (const s of group.schedules) {
+            const e = existingByTime.get(s.scheduledTime) ?? {
+              repId: s.id,
+              rowIds: [],
+            };
+            e.rowIds.push(s.id);
+            existingByTime.set(s.scheduledTime, e);
+          }
+
+          // 추가(신규) / 유지(수정)
+          for (const t of newTimes) {
+            const ex = existingByTime.get(t);
+            if (ex) {
+              await updateMutation.mutateAsync({
+                scheduleId: ex.repId,
+                input: {
+                  medicationName: data.medicationName,
+                  scheduledTime: t,
+                  scheduleType: data.scheduleType,
+                  daysOfWeek: daysList,
+                  active: true,
+                  ...period,
+                },
+              });
+            } else {
+              await createMutation.mutateAsync({
+                protegeId,
+                medicationName: data.medicationName,
+                scheduledTime: t,
+                scheduleType: data.scheduleType,
+                daysOfWeek: daysList,
+                ...period,
+              });
+            }
+          }
+
+          // 빠진 시간 삭제
+          for (const [t, ex] of existingByTime) {
+            if (!newTimes.includes(t)) {
+              for (const rowId of ex.rowIds) {
+                await deleteMutation.mutateAsync({
+                  scheduleId: rowId,
+                  protegeId,
+                });
+              }
+            }
+          }
+
           toast.show({ message: "약을 수정했어요", variant: "success" });
         } else {
-          await createMutation.mutateAsync({
-            protegeId,
-            medicationName: data.medicationName,
-            scheduledTime: data.scheduledTime,
-            scheduleType: data.scheduleType,
-            daysOfWeek: data.daysOfWeek,
-          });
+          for (const t of newTimes) {
+            await createMutation.mutateAsync({
+              protegeId,
+              medicationName: data.medicationName,
+              scheduledTime: t,
+              scheduleType: data.scheduleType,
+              daysOfWeek: daysList,
+              ...period,
+            });
+          }
           toast.show({ message: "약을 추가했어요", variant: "success" });
         }
         navigation.goBack();
@@ -151,19 +224,18 @@ export default function MedicationEditScreen() {
     [
       createMutation,
       updateMutation,
+      deleteMutation,
       isEdit,
-      scheduleId,
+      group,
       protegeId,
-      existing,
       toast,
       navigation,
     ],
   );
 
   const handleDelete = useCallback(() => {
-    if (!isEdit || scheduleId === undefined) return;
-
-    const medName = existing?.medicationName ?? "이 약";
+    if (!isEdit || !group) return;
+    const medName = group.medicationName;
 
     Alert.alert("약 삭제", `${medName}을(를) 삭제할까요?`, [
       { text: "취소", style: "cancel" },
@@ -172,7 +244,9 @@ export default function MedicationEditScreen() {
         style: "destructive",
         onPress: async () => {
           try {
-            await deleteMutation.mutateAsync({ scheduleId, protegeId });
+            for (const s of group.schedules) {
+              await deleteMutation.mutateAsync({ scheduleId: s.id, protegeId });
+            }
             toast.show({ message: "약을 삭제했어요", variant: "success" });
             navigation.goBack();
           } catch (e) {
@@ -194,19 +268,14 @@ export default function MedicationEditScreen() {
         },
       },
     ]);
-  }, [
-    isEdit,
-    scheduleId,
-    protegeId,
-    existing,
-    deleteMutation,
-    toast,
-    navigation,
-  ]);
+  }, [isEdit, group, protegeId, deleteMutation, toast, navigation]);
 
   const headerTitle = isEdit ? "약 수정" : "약 추가";
   const submitLabel = isEdit ? "수정 완료" : "저장";
-  const submitLoading = createMutation.isPending || updateMutation.isPending;
+  const submitLoading =
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    deleteMutation.isPending;
 
   return (
     <View style={styles.root}>
@@ -263,19 +332,19 @@ export default function MedicationEditScreen() {
           </AppText>
           <Controller
             control={control}
-            name="scheduledTime"
-            render={({ field: { value, onChange, onBlur } }) => (
-              <TimePickerField
-                value={value}
+            name="scheduledTimes"
+            render={({ field: { value, onChange } }) => (
+              <MedicationTimesField
+                value={value ?? []}
                 onChange={onChange}
-                onBlur={onBlur}
-                error={errors.scheduledTime?.message}
+                error={errors.scheduledTimes?.message}
                 audience={audience}
               />
             )}
           />
         </View>
 
+        {/* 복용 주기 */}
         <View style={styles.card}>
           <AppText
             variant="bodyBold"
@@ -326,6 +395,44 @@ export default function MedicationEditScreen() {
               />
             </View>
           )}
+        </View>
+
+        {/* 복용 기간 — 별도 카드 */}
+        <View style={styles.card}>
+          <AppText
+            variant="bodyBold"
+            audience={audience}
+            color="primary"
+            style={styles.cardTitle}
+          >
+            복용 기간
+          </AppText>
+          <Controller
+            control={control}
+            name="periodType"
+            render={({ field: { value, onChange } }) => (
+              <MedicationPeriodPicker
+                periodType={value}
+                startDate={watch("startDate")}
+                endDate={watch("endDate")}
+                onChangeType={(t) => {
+                  onChange(t);
+                  if (t === "CONTINUOUS") {
+                    setValue("startDate", undefined, { shouldValidate: true });
+                    setValue("endDate", undefined, { shouldValidate: true });
+                  }
+                }}
+                onChangeStart={(iso) =>
+                  setValue("startDate", iso, { shouldValidate: true })
+                }
+                onChangeEnd={(iso) =>
+                  setValue("endDate", iso, { shouldValidate: true })
+                }
+                error={errors.endDate?.message}
+                audience={audience}
+              />
+            )}
+          />
         </View>
 
         {isEdit && (

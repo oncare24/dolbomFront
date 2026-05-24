@@ -39,6 +39,22 @@ import {
 // ────────────────────────────────────────────
 // Query Keys
 // ────────────────────────────────────────────
+import { useAuthStore } from "../stores/authStore";
+import { toastBridge } from "../utils/toastBridge";
+
+// 어머니 본인 폰이고, DAILY이며 오늘 시각이 이미 지난 schedule을 등록한 경우 안내.
+// 시중 표준(다음 회차로 이월) 동작은 그대로, UX만 보완.
+function maybeNotifyPastTimeToast(savedSchedule: MedicationSchedule) {
+  if (useAuthStore.getState().user?.role !== "elderly") return;
+  if (savedSchedule.scheduleType !== "DAILY") return;
+
+  const [hour, minute] = savedSchedule.scheduledTime.split(":").map(Number);
+  const target = new Date();
+  target.setHours(hour, minute, 0, 0);
+  if (target.getTime() <= Date.now()) {
+    toastBridge.show("오늘은 시각이 지나서 내일부터 알람이 가요", "info");
+  }
+}
 
 export const medicationKeys = {
   all: ["medications"] as const,
@@ -132,6 +148,7 @@ export function useCreateMedicationSchedule() {
       scheduleLocalRemindersForMedication(savedSchedule).catch((e) =>
         console.warn("[MED-LOCAL] create-sync failed:", e),
       );
+      maybeNotifyPastTimeToast(savedSchedule);
     },
 
     onSettled: (_data, _err, input) => {
@@ -218,6 +235,7 @@ export function useUpdateMedicationSchedule() {
         scheduleLocalRemindersForMedication(savedSchedule).catch((e) =>
           console.warn("[MED-LOCAL] update-sync failed:", e),
         );
+        maybeNotifyPastTimeToast(savedSchedule);
       } else {
         cancelLocalRemindersForMedication(savedSchedule.id).catch((e) =>
           console.warn("[MED-LOCAL] update-cancel failed:", e),

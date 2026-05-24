@@ -3,9 +3,9 @@
 export type ProtegeStatusType =
   | "inside"
   | "outside"
+  | "active"
   | "disconnected"
   | "unknown";
-
 export interface Protege {
   id: number;
   name: string;

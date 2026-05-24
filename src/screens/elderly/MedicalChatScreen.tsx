@@ -42,13 +42,8 @@ async function tryGetCurrentLocation(): Promise<
   { latitude: number; longitude: number } | undefined
 > {
   try {
-    const { status } = await Location.requestForegroundPermissionsAsync();
+    const { status } = await Location.getForegroundPermissionsAsync();
     if (status !== "granted") return undefined;
-    // const loc = await Location.getCurrentPositionAsync({
-    //   accuracy: Location.Accuracy.Balanced,
-    //   maximumAge: 30000, // 30초 캐시 OK
-    //   timeout: 5000,
-    // });
     const loc = await Location.getCurrentPositionAsync({
       accuracy: Location.Accuracy.Balanced,
     });
@@ -83,6 +78,11 @@ export default function MedicalChatScreen() {
       createdAt: Date.now(),
     };
     setMessages([initial]);
+  }, []);
+
+  // 화면 진입 시 위치 권한을 미리 한 번 요청 (대화 중간에 갑자기 뜨는 것 방지)
+  useEffect(() => {
+    Location.requestForegroundPermissionsAsync().catch(() => {});
   }, []);
 
   // 메시지 추가될 때마다 하단으로 스크롤

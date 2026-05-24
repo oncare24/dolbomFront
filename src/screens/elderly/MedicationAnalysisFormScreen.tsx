@@ -18,6 +18,7 @@ import {
   type CodefAuthFormValues,
 } from "../../schemas/drugSafetySchema";
 import { useDrugSafetyAuthStore } from "../../stores/drugSafetyAuthStore";
+import { useAuthStore } from "../../stores/authStore";
 import { useRequestCodefAuth } from "../../hooks/useDrugSafety";
 import { ApiException } from "../../services/api";
 import type { RootStackParamList } from "../../types/navigation";
@@ -26,14 +27,6 @@ type Nav = NativeStackNavigationProp<
   RootStackParamList,
   "MedicationAnalysisForm"
 >;
-
-// 휴대폰 자동 하이픈
-function formatPhone(input: string): string {
-  const digits = input.replace(/\D/g, "").slice(0, 11);
-  if (digits.length <= 3) return digits;
-  if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
-  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
-}
 
 // 주민번호 자동 하이픈 (6-7)
 function formatIdentity(input: string): string {
@@ -46,6 +39,7 @@ export default function MedicationAnalysisFormScreen() {
   const navigation = useNavigation<Nav>();
   const insets = useSafeAreaInsets();
   const toast = useToast();
+  const user = useAuthStore((s) => s.user);
   const setAuthInput = useDrugSafetyAuthStore((s) => s.setAuthInput);
   const setSession = useDrugSafetyAuthStore((s) => s.setSession);
   const { mutateAsync, isPending } = useRequestCodefAuth();
@@ -58,9 +52,9 @@ export default function MedicationAnalysisFormScreen() {
     resolver: zodResolver(codefAuthSchema),
     mode: "onChange",
     defaultValues: {
-      userName: "",
+      userName: user?.name ?? "",
       identity: "",
-      phoneNo: "",
+      phoneNo: (user?.phoneNumber ?? "").replace(/\D/g, ""),
     },
   });
 
@@ -98,7 +92,7 @@ export default function MedicationAnalysisFormScreen() {
         bottomOffset={Spacing.lg}
       >
         <AppText variant="h2" audience="elderly" style={styles.title}>
-          본인 정보를{"\n"}입력해 주세요
+          주민등록번호를{"\n"}입력해 주세요
         </AppText>
         <AppText
           variant="body"
@@ -106,32 +100,30 @@ export default function MedicationAnalysisFormScreen() {
           color="secondary"
           style={styles.subtitle}
         >
-          처방전을 안전하게 조회하기 위한 정보예요.
+          가입하신 정보로 처방전을 조회해요.
         </AppText>
 
-        <View style={styles.fields}>
-          <Controller
-            control={control}
-            name="userName"
-            render={({
-              field: { onChange, onBlur, value },
-              fieldState: { error },
-            }) => (
-              <AppTextInput
-                label="이름"
-                placeholder="홍길동"
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                error={error?.message}
-                maxLength={10}
-                audience="elderly"
-                autoCapitalize="none"
-                autoFocus
-              />
-            )}
-          />
+        <View style={styles.infoCard}>
+          <View style={styles.infoRow}>
+            <AppText variant="caption" audience="elderly" color="secondary">
+              이름
+            </AppText>
+            <AppText variant="body" audience="elderly">
+              {user?.name ?? "-"}
+            </AppText>
+          </View>
+          <View style={styles.infoDivider} />
+          <View style={styles.infoRow}>
+            <AppText variant="caption" audience="elderly" color="secondary">
+              휴대폰 번호
+            </AppText>
+            <AppText variant="body" audience="elderly">
+              {user?.phoneNumber ?? "-"}
+            </AppText>
+          </View>
+        </View>
 
+        <View style={styles.fields}>
           <Controller
             control={control}
             name="identity"
@@ -150,27 +142,7 @@ export default function MedicationAnalysisFormScreen() {
                 maxLength={14}
                 secureTextEntry
                 audience="elderly"
-              />
-            )}
-          />
-
-          <Controller
-            control={control}
-            name="phoneNo"
-            render={({
-              field: { onChange, onBlur, value },
-              fieldState: { error },
-            }) => (
-              <AppTextInput
-                label="휴대폰 번호"
-                placeholder="010-0000-0000"
-                value={formatPhone(value)}
-                onChangeText={(t) => onChange(t.replace(/\D/g, ""))}
-                onBlur={onBlur}
-                error={error?.message}
-                keyboardType="number-pad"
-                maxLength={13}
-                audience="elderly"
+                autoFocus
               />
             )}
           />
@@ -214,6 +186,24 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     marginBottom: Spacing.xl,
+  },
+  infoCard: {
+    backgroundColor: Colors.surface.card,
+    borderWidth: 1,
+    borderColor: Colors.surface.divider,
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.lg,
+    marginBottom: Spacing.xl,
+  },
+  infoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+  },
+  infoDivider: {
+    height: 1,
+    backgroundColor: Colors.surface.divider,
   },
   fields: {
     gap: Spacing.md,

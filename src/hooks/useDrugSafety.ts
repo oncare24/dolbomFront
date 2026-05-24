@@ -94,6 +94,7 @@ export function useConfirmCodefAuth() {
     onSuccess: (result) => {
       qc.setQueryData(drugSafetyKeys.selfAnalysis(), result);
       qc.invalidateQueries({ queryKey: drugSafetyKeys.analysis() });
+      qc.invalidateQueries({ queryKey: ["medications"] }); // ← 자동 등록분 즉시 반영(medicationKeys 루트와 일치)
     },
   });
 }
