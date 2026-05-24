@@ -1,6 +1,6 @@
 // src/components/guardian/TodaySummaryRow.tsx
 
-// "오늘의 요약" 섹션 — 3개 카드(복약/위치 보고/이상 감지) 가로 배치.
+// "오늘의 요약" 섹션 — 2개 카드(복약/이상 감지) 가로 배치.
 // 미준비 데이터는 null 전달 → 카드 자동 비활성 + "준비 중" 표시.
 
 import React from "react";
@@ -13,8 +13,6 @@ interface Props {
   medTakenCount: number;
   medTotalCount: number;
   /** null = 데이터 미준비 */
-  locationReportCount: number | null;
-  /** null = 데이터 미준비 */
   anomalyCount: number | null;
   onMedPress?: () => void;
 }
@@ -22,7 +20,6 @@ interface Props {
 export function TodaySummaryRow({
   medTakenCount,
   medTotalCount,
-  locationReportCount,
   anomalyCount,
   onMedPress,
 }: Props) {
@@ -47,17 +44,6 @@ export function TodaySummaryRow({
           hint={hasMed ? undefined : "일정 없음"}
           tone="primary"
           onPress={onMedPress}
-        />
-
-        <TodaySummaryCard
-          icon="location"
-          label="위치 보고"
-          value={
-            locationReportCount === null ? "—" : `${locationReportCount}회`
-          }
-          hint={locationReportCount === null ? "준비 중" : undefined}
-          tone={locationReportCount === null ? "muted" : "neutral"}
-          disabled={locationReportCount === null}
         />
 
         <TodaySummaryCard
