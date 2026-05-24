@@ -1,17 +1,18 @@
 // 시니어용 일반 주의 경고 카드 (MEDIUM/LOW).
-// CRITICAL과 달리 약 페어 시각화 없음 — explanation 본문만 강조.
 
 import React from "react";
 import { StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { AppText } from "../common/Text";
+import { DrugNameChips } from "../common/DrugNameChips";
 import { Colors, Elevation, Radius, Spacing } from "../../theme";
 import { cleanExplanation } from "../../utils/drugSafety";
 import type { Warning, WarningType } from "../../types/drugSafety";
 
 interface Props {
   warning: Warning;
+  onPressDrug?: (drugName: string) => void;
 }
 
 const TYPE_LABEL: Record<WarningType, string> = {
@@ -23,7 +24,7 @@ const TYPE_LABEL: Record<WarningType, string> = {
   DURATION: "복용 기간 주의",
 };
 
-export function WarningCardSimple({ warning }: Props) {
+export function WarningCardSimple({ warning, onPressDrug }: Props) {
   const typeLabel = TYPE_LABEL[warning.type] ?? "주의 사항";
 
   return (
@@ -37,6 +38,14 @@ export function WarningCardSimple({ warning }: Props) {
       <AppText variant="h3" audience="elderly" style={styles.title}>
         {typeLabel}
       </AppText>
+
+      <View style={styles.chips}>
+        <DrugNameChips
+          names={warning.involvedDrugNames}
+          audience="elderly"
+          onPressDrug={onPressDrug}
+        />
+      </View>
 
       <AppText variant="body" audience="elderly" style={styles.body}>
         {cleanExplanation(warning.explanation)}
@@ -75,6 +84,9 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   title: {
+    marginTop: Spacing.sm,
+  },
+  chips: {
     marginTop: Spacing.sm,
   },
   body: {

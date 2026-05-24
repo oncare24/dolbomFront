@@ -54,6 +54,10 @@ export default function MedicationAnalysisResultScreen() {
     navigation.navigate("PrescriptionList");
   };
 
+  const goDrugInList = (drugName: string) => {
+    navigation.navigate("PrescriptionList", { highlightDrugName: drugName });
+  };
+
   // ─── 로딩 ───
   if (isLoading) {
     return (
@@ -146,11 +150,15 @@ export default function MedicationAnalysisResultScreen() {
             <WarningCardCritical
               key={`c-${i}`}
               warning={w}
-              prescriptions={data.prescriptions}
+              onPressDrug={goDrugInList}
             />
           ))}
           {simpleWarnings.map((w, i) => (
-            <WarningCardSimple key={`s-${i}`} warning={w} />
+            <WarningCardSimple
+              key={`s-${i}`}
+              warning={w}
+              onPressDrug={goDrugInList}
+            />
           ))}
           <PrescriptionEntryCard
             count={data.prescriptions.length}

@@ -1,7 +1,5 @@
 // 보호자 — 피보호자 약물 안전 분석 상세.
 
-import React, { useCallback } from "react";
-import { ActivityIndicator, StyleSheet, View } from "react-native";
 import {
   useNavigation,
   useRoute,
@@ -29,12 +27,15 @@ import { ApiException } from "../../services/api";
 import { Colors, Radius, Spacing } from "../../theme";
 import type { RootStackParamList } from "../../types/navigation";
 import { PrescriptionCardGuardian } from "../../components/guardian/PrescriptionCardGuardian";
-import { groupPrescriptions } from "../../utils/prescription";
+import React, { useCallback, useRef, useState } from "react";
+import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
+
 type Route = RouteProp<RootStackParamList, "MedicationAnalysisDetail">;
 type Nav = NativeStackNavigationProp<
   RootStackParamList,
   "MedicationAnalysisDetail"
 >;
+import { cleanField, groupPrescriptions } from "../../utils/prescription";
 
 export default function MedicationAnalysisDetailScreen() {
   const navigation = useNavigation<Nav>();
@@ -72,6 +73,12 @@ export default function MedicationAnalysisDetailScreen() {
       }
     }
   }, [requestRefresh, protegeId, protegeName, toast]);
+
+  const scrollRef = useRef<ScrollView>(null);
+  const sectionYRef = useRef(0);
+  const listYRef = useRef(0);
+  const cardYsRef = useRef<Record<string, number>>({});
+  const [highlightedName, setHighlightedName] = useState<string | null>(null);
 
   // ─── 로딩 ───
   if (isLoading) {
@@ -170,11 +177,22 @@ export default function MedicationAnalysisDetailScreen() {
     return acc;
   }, {} as Record<string, number>);
 
+  const handlePressDrug = (name: string) => {
+    const key = cleanField(name);
+    const cardY = cardYsRef.current[key];
+    if (cardY == null) return;
+    const y = Math.max(0, sectionYRef.current + listYRef.current + cardY - 12);
+    scrollRef.current?.scrollTo({ y, animated: true });
+    setHighlightedName(key);
+    setTimeout(() => setHighlightedName(null), 2500);
+  };
+
   return (
     <View style={styles.root}>
       <AppHeader title="약물 안전 분석" audience="guardian" />
 
       <ScreenContainer
+        ref={scrollRef}
         audience="guardian"
         scrollable
         paddingTop={Spacing.md}
@@ -299,13 +317,22 @@ export default function MedicationAnalysisDetailScreen() {
         ) : (
           <View style={styles.warningList}>
             {sortedWarnings.map((w, i) => (
-              <GuardianMedicationWarningCard key={i} warning={w} />
+              <GuardianMedicationWarningCard
+                key={i}
+                warning={w}
+                onPressDrug={handlePressDrug}
+              />
             ))}
           </View>
         )}
 
         {prescriptionGroups.length > 0 && (
-          <View style={styles.prescriptionsSection}>
+          <View
+            style={styles.prescriptionsSection}
+            onLayout={(e) => {
+              sectionYRef.current = e.nativeEvent.layout.y;
+            }}
+          >
             <View style={styles.sectionHeader}>
               <AppText variant="h3" audience="guardian">
                 처방받은 약
@@ -314,10 +341,28 @@ export default function MedicationAnalysisDetailScreen() {
                 {prescriptionGroups.length}종
               </AppText>
             </View>
-            <View style={styles.prescriptionList}>
-              {prescriptionGroups.map((g, i) => (
-                <PrescriptionCardGuardian key={i} group={g} />
-              ))}
+            <View
+              style={styles.prescriptionList}
+              onLayout={(e) => {
+                listYRef.current = e.nativeEvent.layout.y;
+              }}
+            >
+              {prescriptionGroups.map((g, i) => {
+                const key = cleanField(g.prescription.resDrugName);
+                return (
+                  <View
+                    key={i}
+                    onLayout={(e) => {
+                      cardYsRef.current[key] = e.nativeEvent.layout.y;
+                    }}
+                    style={
+                      highlightedName === key ? styles.highlight : undefined
+                    }
+                  >
+                    <PrescriptionCardGuardian group={g} />
+                  </View>
+                );
+              })}
             </View>
           </View>
         )}
@@ -467,5 +512,10 @@ const styles = StyleSheet.create({
   prescriptionList: {
     gap: Spacing.sm,
     paddingBottom: Spacing.lg,
+  },
+  highlight: {
+    borderWidth: 2,
+    borderColor: Colors.semantic.info,
+    borderRadius: Radius.lg,
   },
 });
