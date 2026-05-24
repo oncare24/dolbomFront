@@ -1,12 +1,11 @@
 // 시니어용 처방 약 카드.
-// 시중앱 + 시니어 UX 조사 결과 반영:
-// - 효능을 메인(큰 글씨) — 시니어가 한눈에 이해 ("진통제"가 "록소로펜정"보다 직관적)
-// - 약 이름은 서브(작은 글씨) — 약사·의사 매칭용
-// - 같은 약 그룹화 → 카드 안에 "2번 처방받았어요" 표시
-// - 처방기관 여러 곳이면 "외 N곳"
+// - 약 이름을 메인(큰 글씨) — 약을 한눈에 구분 (효능은 같은 분류가 많아 구분이 안 됨)
+// - 효능은 서브(작은 글씨)
+// - 왼쪽: 약 사진(imageUrl) / 없으면 약통 아이콘
+// - 같은 약 그룹화 → "2번 처방받았어요" / 처방기관 여러 곳이면 "외 N곳"
 
 import React from "react";
-import { StyleSheet, View } from "react-native";
+import { Image, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { AppText } from "../common/Text";
 import { Colors, Elevation, Radius, Spacing } from "../../theme";
@@ -31,24 +30,32 @@ export function PrescriptionCardElderly({ group }: Props) {
     <View style={styles.card}>
       <View style={styles.row}>
         <View style={styles.iconWrap}>
-          <Ionicons name="medkit" size={32} color={Colors.brand.primary} />
+          {p.imageUrl ? (
+            <Image
+              source={{ uri: p.imageUrl }}
+              style={styles.pillImage}
+              resizeMode="contain"
+            />
+          ) : (
+            <Ionicons name="medkit" size={32} color={Colors.brand.primary} />
+          )}
         </View>
 
         <View style={styles.content}>
-          {/* 메인: 효능 (없으면 약 이름이 메인) */}
+          {/* 메인: 약 이름 */}
           <AppText variant="h3" audience="elderly">
-            {hasEffect ? effect : drugName}
+            {drugName}
           </AppText>
 
-          {/* 서브: 약 이름 (효능이 메인일 때만 작게) */}
+          {/* 서브: 효능 */}
           {hasEffect && (
             <AppText
               variant="caption"
               audience="elderly"
               color="secondary"
-              style={styles.drugName}
+              style={styles.effect}
             >
-              {drugName}
+              {effect}
             </AppText>
           )}
 
@@ -112,12 +119,18 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.brand.primaryLight,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  pillImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: Radius.lg,
   },
   content: {
     flex: 1,
     gap: Spacing.xs,
   },
-  drugName: {
+  effect: {
     marginTop: -2,
   },
   countBadge: {

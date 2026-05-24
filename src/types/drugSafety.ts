@@ -27,6 +27,7 @@ export interface Prescription {
   resManufactureDate: string; // ← 추가 (YYYYMMDD)
   resPrescribeNo: string; // ← 추가
   resDrugCode: string; // ← 추가
+  imageUrl?: string | null; // ← 신규 (약 이미지 URL)
 }
 
 /** 심각도 — UI 색상 매핑. */
@@ -37,6 +38,7 @@ export interface Warning {
   type: WarningType;
   severity: WarningSeverity;
   involvedIngredients: string[];
+  involvedDrugNames: string[]; // ← 신규 (약 이름)
   rawMessage: string;
   /** 약 이름 기반 사용자 친화 설명. "...상담해 보세요" 포함. */
   explanation: string;

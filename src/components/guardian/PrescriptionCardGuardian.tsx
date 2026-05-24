@@ -1,11 +1,9 @@
-// 보호자용 처방 약 카드 — Apple Health / Medisafe 컴팩트 패턴.
-// 시니어 카드보다 정보 밀도 높음:
-// - 약 이름이 메인 (보호자는 약 이름으로 의사·약사와 소통)
-// - 효능 작은 뱃지
-// - 처방 횟수, 복용법, 처방기관 한 줄 메타
+// 보호자용 처방 약 카드 — 컴팩트(정보 밀도 높음).
+// - 약 이름 메인 + 효능 작은 뱃지 + 복용법/기관 메타
+// - 왼쪽: 약 사진(imageUrl) / 없으면 약통 아이콘
 
 import React from "react";
-import { StyleSheet, View } from "react-native";
+import { Image, StyleSheet, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { AppText } from "../common/Text";
 import { Colors, Elevation, Radius, Spacing } from "../../theme";
@@ -28,7 +26,15 @@ export function PrescriptionCardGuardian({ group }: Props) {
   return (
     <View style={styles.card}>
       <View style={styles.iconWrap}>
-        <Ionicons name="medkit" size={20} color={Colors.brand.primary} />
+        {p.imageUrl ? (
+          <Image
+            source={{ uri: p.imageUrl }}
+            style={styles.pillImage}
+            resizeMode="contain"
+          />
+        ) : (
+          <Ionicons name="medkit" size={20} color={Colors.brand.primary} />
+        )}
       </View>
 
       <View style={styles.content}>
@@ -124,6 +130,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.brand.primaryLight,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  pillImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: Radius.md,
   },
   content: {
     flex: 1,
