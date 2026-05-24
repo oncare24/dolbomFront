@@ -81,6 +81,8 @@ interface MedicationScheduleSourceResponseRaw {
   daysOfWeek: DayOfWeek[];
   active: boolean;
   lastChangedAt: string;
+  startDate: string | null; // 추가
+  endDate: string | null; // 추가
 }
 
 function toFrontSchedule(
@@ -111,6 +113,8 @@ function toFrontScheduleFromSource(
     daysOfWeek: raw.scheduleType === "DAILY" ? [] : raw.daysOfWeek ?? [],
     active: raw.active,
     createdAt: raw.lastChangedAt,
+    startDate: raw.startDate ?? null, // 추가
+    endDate: raw.endDate ?? null, // 추가
   };
 }
 
@@ -208,6 +212,8 @@ export async function createMedicationSchedule(
       allowedDelayMinutes: DEFAULT_ALLOWED_DELAY_MINUTES,
       scheduleType: input.scheduleType,
       daysOfWeek: input.scheduleType === "WEEKLY" ? input.daysOfWeek : [],
+      startDate: input.startDate ?? null, // ← 추가
+      endDate: input.endDate ?? null, // ← 추가
     },
   );
   return toFrontSchedule(res.data);
@@ -241,6 +247,8 @@ export async function updateMedicationSchedule(
       dayOfWeek,
       daysOfWeek,
       active: input.active,
+      startDate: input.startDate ?? null, // ← 추가
+      endDate: input.endDate ?? null, // ← 추가
     },
   );
   return toFrontSchedule(res.data);

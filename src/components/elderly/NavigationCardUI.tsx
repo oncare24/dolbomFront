@@ -39,10 +39,10 @@ export default function NavigationCardUI({
               {formatDistance(distanceToNext)} 앞
             </Text>
           )}
-          <Text style={styles.turnLabel}>{currentCard.turnLabel}</Text>
-          {currentCard.description ? (
+          <Text style={styles.turnLabel}>{currentCard.actionLabel}</Text>
+          {currentCard.speech ? (
             <Text style={styles.description} numberOfLines={2}>
-              {currentCard.description}
+              {currentCard.speech}
             </Text>
           ) : null}
         </View>
@@ -54,7 +54,7 @@ export default function NavigationCardUI({
           <Text style={styles.nextLabel}>다음</Text>
           <Text style={styles.nextIcon}>{getTurnIcon(nextCard.turnType)}</Text>
           <Text style={styles.nextTurn} numberOfLines={1}>
-            {nextCard.turnLabel}
+            {nextCard.actionLabel}
             {nextCard.distance > 0
               ? ` · ${formatDistance(nextCard.distance)}`
               : ""}

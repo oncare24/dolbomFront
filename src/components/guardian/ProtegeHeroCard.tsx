@@ -25,6 +25,13 @@ function activeBadge(status: ProtegeStatusType): {
         bg: "#E8F5E9",
         fg: Colors.semantic.success,
       };
+    case "active":
+      return {
+        label: "연결됨",
+        bg: Colors.brand.primaryLight,
+        fg: Colors.brand.primary,
+      };
+
     case "disconnected":
       return {
         label: "연결 끊김",

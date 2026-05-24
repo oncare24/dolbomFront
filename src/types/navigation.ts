@@ -89,10 +89,13 @@ export interface NavigationCard {
   turnLabel: string;
   description: string;
   name: string;
+  landmark: string;
+  actionLabel: string;
+  speech: string;
   pathCoords: { latitude: number; longitude: number }[];
   distance: number;
   duration: number;
-  pointType?: "start" | "end" | "via";
+  pointType?: "start" | "end" | "waypoint" | "normal";
 }
 
 export interface NavigationRoute {

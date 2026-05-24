@@ -8,12 +8,26 @@ import notifee, {
 
 export function configureNotificationHandler() {
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-    }),
+    handleNotification: async (notification) => {
+      const data = notification.request.content.data as
+        | { type?: string }
+        | undefined;
+      // silent push는 표시 안 함 — 백엔드에서 schedule 동기화용으로만 보냄.
+      if (data?.type === "MEDICATION_SCHEDULE_CHANGED") {
+        return {
+          shouldShowBanner: false,
+          shouldShowList: false,
+          shouldPlaySound: false,
+          shouldSetBadge: false,
+        };
+      }
+      return {
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      };
+    },
   });
 }
 

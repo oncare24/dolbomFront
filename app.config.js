@@ -96,6 +96,8 @@ module.exports = {
           },
         },
       ],
+      "./plugins/withFullScreenAlarm",
+      "expo-audio",
     ],
     extra: {
       eas: {

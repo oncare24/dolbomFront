@@ -7,14 +7,14 @@
 //       다음 진입/refetch 시 갱신됨. 즉시 반영하려면 보호자가 화면 들어올 때 자동 refetch.
 //   - 안전구역 등록/이탈 등 ward 상태가 바뀐 경우 (선택)
 
+import type { Protege } from "../types/guardianHome";
 import {
+  useMutation,
   useQuery,
   useQueryClient,
   type UseQueryOptions,
 } from "@tanstack/react-query";
-import { getMyWards } from "../services/wardService";
-import type { Protege } from "../types/guardianHome";
-
+import { getMyWards, unlinkWard } from "../services/wardService";
 // ───────────────────────────────────────────────────────
 // Query Keys (Factory)
 // ───────────────────────────────────────────────────────
@@ -41,4 +41,15 @@ export function useMyWards(
 export function useInvalidateMyWards() {
   const qc = useQueryClient();
   return () => qc.invalidateQueries({ queryKey: wardKeys.list() });
+}
+
+/** 피보호자 연결 해제. 성공 시 ward 목록 invalidate → 보호자 홈/상세에서 카드 사라짐. */
+export function useUnlinkWard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (wardId: number) => unlinkWard(wardId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: wardKeys.list() });
+    },
+  });
 }

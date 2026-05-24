@@ -14,7 +14,12 @@ import { colorFromName } from "../utils/colorFromName";
 // ───────────────────────────────────────────────────────
 // 백엔드 raw 응답 (WardResponse)
 // ───────────────────────────────────────────────────────
-type BackendWardStatus = "INSIDE" | "OUTSIDE" | "DISCONNECTED" | "UNKNOWN";
+type BackendWardStatus =
+  | "INSIDE"
+  | "OUTSIDE"
+  | "ACTIVE"
+  | "DISCONNECTED"
+  | "UNKNOWN";
 
 interface WardResponseRaw {
   wardId: number;
@@ -33,6 +38,8 @@ function toFrontStatus(s: BackendWardStatus): ProtegeStatusType {
       return "inside";
     case "OUTSIDE":
       return "outside";
+    case "ACTIVE":
+      return "active";
     case "DISCONNECTED":
       return "disconnected";
     case "UNKNOWN":
@@ -60,4 +67,9 @@ function toProtege(raw: WardResponseRaw): Protege {
 export async function getMyWards(): Promise<Protege[]> {
   const res = await api.get<WardResponseRaw[]>("/api/guardian/wards");
   return res.data.map(toProtege);
+}
+
+/** DELETE /api/guardian/wards/{wardId} — 피보호자 연결 해제 */
+export async function unlinkWard(wardId: number): Promise<void> {
+  await api.delete(`/api/guardian/wards/${wardId}`);
 }

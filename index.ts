@@ -1,6 +1,6 @@
 import { registerRootComponent } from "expo";
 import notifee, { EventType } from "react-native-notify-kit";
-
+import "./src/services/medicationSyncTask"; // 백그라운드 약 일정 동기화 태스크 글로벌 등록
 import App from "./App";
 
 // 백그라운드/킬 상태에서 알람 이벤트 처리.

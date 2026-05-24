@@ -72,18 +72,21 @@ export function distanceToPath(
  * → 가장 가까운 점을 Haversine으로 실제 거리 변환.
  * 짧은 거리(<수 km)에서 충분히 정확.
  */
-function pointToSegmentDistance(
+/**
+ * 점 P를 선분 AB에 사영(projection).
+ * lat/lon = 선분 위에서 P에 가장 가까운 점, distance = 그 점까지 실제 거리(m).
+ */
+function projectOnSegment(
   pLat: number,
   pLon: number,
   aLat: number,
   aLon: number,
   bLat: number,
   bLon: number,
-): number {
+): { lat: number; lon: number; distance: number } {
   const meanLatRad = ((aLat + bLat) / 2) * (Math.PI / 180);
   const cosLat = Math.cos(meanLatRad);
 
-  // 평면 좌표 변환 (경도에 cos(lat) 보정)
   const ax = aLon * cosLat;
   const ay = aLat;
   const bx = bLon * cosLat;
@@ -95,19 +98,28 @@ function pointToSegmentDistance(
   const dy = by - ay;
   const lenSq = dx * dx + dy * dy;
 
-  let t: number;
-  if (lenSq === 0) {
-    t = 0; // A == B (퇴화 선분)
-  } else {
-    t = ((px - ax) * dx + (py - ay) * dy) / lenSq;
-    t = Math.max(0, Math.min(1, t));
-  }
+  let t = lenSq === 0 ? 0 : ((px - ax) * dx + (py - ay) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
 
-  // 선분 위의 가장 가까운 점
   const closestLat = ay + t * dy;
   const closestLon = (ax + t * dx) / cosLat;
 
-  return haversine(pLat, pLon, closestLat, closestLon);
+  return {
+    lat: closestLat,
+    lon: closestLon,
+    distance: haversine(pLat, pLon, closestLat, closestLon),
+  };
+}
+
+function pointToSegmentDistance(
+  pLat: number,
+  pLon: number,
+  aLat: number,
+  aLon: number,
+  bLat: number,
+  bLon: number,
+): number {
+  return projectOnSegment(pLat, pLon, aLat, aLon, bLat, bLon).distance;
 }
 
 /** 거리 → "1.5km" 또는 "200m" */
@@ -124,4 +136,44 @@ export function formatDuration(seconds: number): string {
   const hours = Math.floor(minutes / 60);
   const remainMin = minutes % 60;
   return remainMin > 0 ? `약 ${hours}시간 ${remainMin}분` : `약 ${hours}시간`;
+}
+
+/**
+ * 경로 위에서 현재 위치에 가장 가까운 지점을 찾아,
+ * 출발점부터 그 지점까지의 "지나온 구간"을 반환.
+ * GPS 위치 단위로 잘라 회색 표시가 발밑까지 따라오게 한다.
+ */
+export function passedCoordsUpTo(
+  currentLat: number,
+  currentLon: number,
+  pathCoords: { latitude: number; longitude: number }[],
+): { latitude: number; longitude: number }[] {
+  if (pathCoords.length < 2) return [];
+
+  let bestDist = Infinity;
+  let bestIndex = 0;
+  let bestPoint = {
+    latitude: pathCoords[0].latitude,
+    longitude: pathCoords[0].longitude,
+  };
+
+  for (let i = 0; i < pathCoords.length - 1; i++) {
+    const proj = projectOnSegment(
+      currentLat,
+      currentLon,
+      pathCoords[i].latitude,
+      pathCoords[i].longitude,
+      pathCoords[i + 1].latitude,
+      pathCoords[i + 1].longitude,
+    );
+    if (proj.distance < bestDist) {
+      bestDist = proj.distance;
+      bestIndex = i;
+      bestPoint = { latitude: proj.lat, longitude: proj.lon };
+    }
+  }
+
+  const passed = pathCoords.slice(0, bestIndex + 1);
+  passed.push(bestPoint);
+  return passed;
 }
