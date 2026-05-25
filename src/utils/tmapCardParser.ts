@@ -77,11 +77,7 @@ export function parseTmapResponse(response: TmapResponse): NavigationRoute {
     }
 
     const landmark =
-      point.properties.facilityName ||
-      point.properties.nearPoiName ||
-      point.properties.intersectionName ||
-      point.properties.name ||
-      "";
+      point.properties.facilityName || point.properties.nearPoiName || "";
 
     cards.push({
       index: cardIndex,

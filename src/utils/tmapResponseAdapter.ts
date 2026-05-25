@@ -204,6 +204,8 @@ export function backendCardsToTmapResponse(
         name: getCardName(card),
         description: card.instruction,
         turnType: cardTypeToTurnType(card.type),
+        facilityName: card.facilityName,
+        nearPoiName: card.nearPoiName,
         ...(card.type === "START" ? { pointType: "SP" } : {}),
         ...(card.type === "ARRIVAL" ? { pointType: "EP" } : {}),
         ...(isFirst

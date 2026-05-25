@@ -17,7 +17,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Location from "expo-location";
-import * as Speech from "expo-speech";
+import {
+  speak as ttsSpeak,
+  stop as ttsStop,
+} from "../../services/tutorialSpeechService";
 import {
   NaverMapView,
   NaverMapPolylineOverlay,
@@ -50,8 +53,8 @@ const OFF_ROUTE_REROUTE_DEBOUNCE_MS = 3000; // 3초 지속 시 재탐색
 const GPS_ACCURACY_THRESHOLD_M = 100;
 const GPS_INTERVAL_MS = 2000;
 const GPS_DISTANCE_FILTER_M = 3;
-const TTS_LANGUAGE = "ko-KR";
-const TTS_RATE = 0.9;
+const ANNOUNCE_PREVIEW_M = 50; // 이만큼 다가오면 "잠시 후 …" 예고
+const ANNOUNCE_ACT_M = 15; // 코앞 — "…하세요" 실행 안내 (필요하면 20까지 올려도 됨)
 const MAP_ZOOM = 17;
 const CAMERA_DURATION_MS = 300;
 const ARRIVAL_END_DELAY_MS = 3000;
@@ -86,6 +89,8 @@ export default function NavigationScreen({
   const mapRef = useRef<any>(null);
   const minDistRef = useRef<number>(Infinity);
   const offRouteSinceRef = useRef<number | null>(null);
+  const previewSpokenRef = useRef(false);
+  const actSpokenRef = useRef(false);
 
   useEffect(() => {
     onNavigationEndRef.current = onNavigationEnd;
@@ -103,6 +108,8 @@ export default function NavigationScreen({
     offRouteSinceRef.current = null;
     setIsOffRoute(false);
 
+    previewSpokenRef.current = true;
+    actSpokenRef.current = true;
     if (parsed.cards.length > 0) {
       speakCard(parsed.cards[0]);
     }
@@ -139,7 +146,7 @@ export default function NavigationScreen({
     return () => {
       isMounted = false;
       locationSubRef.current?.remove();
-      Speech.stop();
+      ttsStop();
     };
   }, []);
 
@@ -197,7 +204,10 @@ export default function NavigationScreen({
       // 지점까지 가장 가까웠던 거리 기록 (통과 판정 기준점)
       if (dist < minDistRef.current) minDistRef.current = dist;
 
-      // 2. 카드 전환 판정
+      // 2. 음성 안내 — 회전 지점에 다가오는 거리에 따라 단계별 (화면 안 봐도 귀로 따라가게)
+      announceByDistance(currentCard, dist);
+
+      // 3. 카드 전환 판정
       //    일반 안내: 지점에 가장 가까워졌다가 멀어지면 "통과"로 보고 전환 (표준 내비 방식)
       //    도착 지점: 반경 안에 들어오면 도착으로 보고 종료
       const arrived = dist < CARD_ADVANCE_THRESHOLD_M;
@@ -218,7 +228,8 @@ export default function NavigationScreen({
         cardIndexRef.current = nextIdx;
         setCurrentCardIndex(nextIdx);
         minDistRef.current = Infinity;
-        speakCard(cards[nextIdx]);
+        previewSpokenRef.current = false; // 다음 카드 안내 단계 초기화
+        actSpokenRef.current = false;
       }
 
       // 3. 경로 이탈 감지 + 디바운스 재탐색
@@ -253,11 +264,23 @@ export default function NavigationScreen({
   );
 
   function speakCard(card: NavigationCard) {
-    Speech.stop();
-    Speech.speak(card.speech || card.actionLabel, {
-      language: TTS_LANGUAGE,
-      rate: TTS_RATE,
-    });
+    ttsSpeak(card.speech || card.actionLabel);
+  }
+
+  // 회전 지점까지 남은 거리에 따라 음성을 단계로 나눠 안내. 각 단계는 카드당 1회.
+  function announceByDistance(card: NavigationCard, dist: number) {
+    if (!actSpokenRef.current && dist <= ANNOUNCE_ACT_M) {
+      actSpokenRef.current = true;
+      previewSpokenRef.current = true; // 예고는 건너뜀
+      ttsSpeak(card.speech || card.actionLabel);
+      return;
+    }
+    if (!previewSpokenRef.current && dist <= ANNOUNCE_PREVIEW_M) {
+      previewSpokenRef.current = true;
+      const base = card.speech || card.actionLabel;
+      // 도착 카드는 "잠시 후 곧 도착합니다"가 어색하므로 그대로 읽음.
+      ttsSpeak(card.pointType === "end" ? base : `잠시 후 ${base}`);
+    }
   }
 
   function handleReplay() {
@@ -266,7 +289,7 @@ export default function NavigationScreen({
   }
 
   function handleClose() {
-    Speech.stop();
+    ttsStop();
     locationSubRef.current?.remove();
     onNavigationEndRef.current?.();
   }

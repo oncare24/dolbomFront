@@ -46,6 +46,10 @@ export interface BackendNavigationCard {
 
   /** 실제 도로/노선 좌표. [[lon, lat], [lon, lat], ...] 형태. */
   path?: number[][];
+
+  // 도보 전용 — 어르신 안내용 랜드마크 (Tmap 시설명 / 주변 POI명)
+  facilityName?: string;
+  nearPoiName?: string;
 }
 
 export interface BackendWalkingResponse {
