@@ -53,6 +53,9 @@ export type RootStackParamList = {
   // ─── 튜토리얼 화면 (mock 데이터로 시연, 실제 API 호출 없음) ───
   TutorialHome: undefined;
   TutorialMedicalChat: undefined;
+  TutorialMedication: undefined;
+  TutorialMedicationHome: undefined;
+  TutorialMedicationToday: undefined;
   TutorialHospitalResult: { result: RecommendResponse };
   TutorialNavigation: {
     mode: "walking" | "transit";
@@ -62,7 +65,7 @@ export type RootStackParamList = {
     endLon: number;
     endName?: string;
   };
-  TutorialComplete: undefined;
+  TutorialComplete: { topic?: "hospital" | "medication" } | undefined;
 
   // ─── 설정 화면 ───
   ElderlySettings: undefined;

@@ -1,5 +1,5 @@
 // 피보호자 설정 화면.
-// 현재 항목: 사용법 다시 배우기 (튜토리얼 진입), 로그아웃
+// 현재 항목: 사용법 다시 배우기(병원 찾기 튜토리얼), 약 챙기기 연습(복약 튜토리얼), 로그아웃
 // 추후 추가 예정: 글자 크기, 음성 안내, 알림 등
 
 import React from "react";
@@ -32,6 +32,10 @@ export default function ElderlySettingsScreen() {
 
   const handleStartTutorial = () => {
     navigation.navigate("TutorialHome");
+  };
+
+  const handleMedicationTutorial = () => {
+    navigation.navigate("TutorialMedicationHome");
   };
 
   // 로그아웃 — 확인 후 useLogout 실행.
@@ -88,10 +92,37 @@ export default function ElderlySettingsScreen() {
           </View>
           <View style={styles.rowText}>
             <AppText variant="bodyBold" audience="elderly" color="primary">
-              사용법 다시 배우기
+              병원 찾기 연습
             </AppText>
             <AppText variant="caption" audience="elderly" color="secondary">
               병원 찾기 연습을 다시 해볼 수 있어요
+            </AppText>
+          </View>
+          <Ionicons
+            name="chevron-forward"
+            size={24}
+            color={Colors.text.disabled}
+          />
+        </Pressable>
+
+        <Pressable
+          onPress={handleMedicationTutorial}
+          style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+          android_ripple={{ color: Colors.surface.divider }}
+        >
+          <View style={[styles.iconWrap, styles.iconBlue]}>
+            <Ionicons
+              name="medkit-outline"
+              size={28}
+              color={Colors.brand.primary}
+            />
+          </View>
+          <View style={styles.rowText}>
+            <AppText variant="bodyBold" audience="elderly" color="primary">
+              약 챙기기 연습
+            </AppText>
+            <AppText variant="caption" audience="elderly" color="secondary">
+              오늘의 약 확인하고 복용 체크하기를 연습해요
             </AppText>
           </View>
           <Ionicons
