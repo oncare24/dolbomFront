@@ -89,10 +89,6 @@ export default function NotificationsScreen() {
           navigation.navigate("SafetyZoneList", { protegeId: wardId });
           break;
         case "INACTIVITY_WARNING":
-          // // 위치/안전 관련 알림 → 해당 피보호자의 안전구역 목록 화면.
-          // navigation.navigate("SafetyZoneList", { protegeId: wardId });
-          break;
-
         case "MEDICATION_MISSED":
           // 이상감지 알림 → 해당 피보호자 이상감지 기록 화면.
           navigation.navigate("AnomalyLog", { protegeId: wardId });
