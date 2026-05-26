@@ -44,11 +44,23 @@ export function getMedicationTodayStatus(
       return { kind: "NOT_TODAY" };
     }
   }
-
   // 2. 오늘 이 스케줄로 찍힌 로그가 있으면 TAKEN
   const log = todayLogs.find((l) => l.scheduleId === schedule.id);
   if (log) {
     return { kind: "TAKEN", takenAt: log.takenAt };
+  }
+
+  // 2.5 등록 시각(createdAt) 이전 회차는 오늘 대상 아님.
+  //     9시에 등록한 8시 약은 먹을 기회가 없었으므로 미복용으로 세지 않음.
+  //     (위에서 TAKEN이면 이미 반환됨 — 먹은 건 항상 인정)
+  const [ch, cm] = schedule.scheduledTime.split(":").map(Number);
+  const doseToday = new Date(now);
+  doseToday.setHours(ch, cm, 0, 0);
+  if (
+    schedule.createdAt &&
+    doseToday.getTime() < new Date(schedule.createdAt).getTime()
+  ) {
+    return { kind: "NOT_TODAY" };
   }
 
   // 3. 마감 시각 안 지났으면 UPCOMING

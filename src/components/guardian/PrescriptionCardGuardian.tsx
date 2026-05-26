@@ -47,17 +47,6 @@ export function PrescriptionCardGuardian({ group }: Props) {
           >
             {drugName}
           </AppText>
-          {group.count > 1 && (
-            <View style={styles.countBadge}>
-              <AppText
-                variant="caption"
-                audience="guardian"
-                style={styles.countText}
-              >
-                {group.count}회
-              </AppText>
-            </View>
-          )}
         </View>
 
         {effect.length > 0 && (

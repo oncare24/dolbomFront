@@ -41,6 +41,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { scheduleMedicationSnooze } from "../../services/medicationReminderService";
 import { VolumeManager } from "react-native-volume-manager";
+import { getMealLabel } from "../../utils/mealLabel";
 type Nav = NativeStackNavigationProp<RootStackParamList, "MedicationAlarm">;
 type RouteProps = RouteProp<RootStackParamList, "MedicationAlarm">;
 
@@ -126,6 +127,14 @@ export default function MedicationAlarmScreen() {
   };
   const closeAlarm = () => closeRef.current();
 
+  // expo-audio: 화면이 내려가며 player가 release되면 pause 호출이 throw해 화면을 죽임 → 항상 감싸서 호출
+  const safeStopAudio = () => {
+    try {
+      player.pause();
+    } catch {
+      /* already released — 무시 */
+    }
+  };
   // // 먹을 약이 없으면(이미 다 복용 / 오늘 해당 없음) 화면 안 띄우고 자동 종료.
   // useEffect(() => {
   //   if (dueDrugs === null) return; // 로딩 중
@@ -190,10 +199,12 @@ export default function MedicationAlarmScreen() {
     startedRef.current = true;
 
     const names = dueDrugs.map((d) => d.medicationName);
-    const message =
-      names.length === 1
-        ? `${names[0]} 드실 시간입니다`
-        : `약 드실 시간입니다. ${names.length}가지 약을 확인해 주세요`;
+    const bagLabel = getMealLabel(time);
+    const message = bagLabel
+      ? `${bagLabel} 드실 시간이에요`
+      : names.length === 1
+      ? `${names[0]} 드실 시간입니다`
+      : `약 드실 시간입니다. ${names.length}가지 약을 확인해 주세요`;
 
     setAudioModeAsync({
       playsInSilentMode: true,
@@ -213,7 +224,7 @@ export default function MedicationAlarmScreen() {
         if (ttsCancelledRef.current) return;
         player.volume = 1.0;
         if (countRef.current >= TTS_MAX_COUNT) {
-          player.pause();
+          safeStopAudio();
           return;
         }
         gapTimerRef.current = setTimeout(announce, TTS_GAP_MS);
@@ -231,7 +242,7 @@ export default function MedicationAlarmScreen() {
       ttsCancelledRef.current = true;
       if (gapTimerRef.current) clearTimeout(gapTimerRef.current);
       stopSpeech();
-      player.pause();
+      safeStopAudio();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -244,7 +255,7 @@ export default function MedicationAlarmScreen() {
 
   const handleTook = () => {
     stopSpeech();
-    player.pause();
+    safeStopAudio();
     if (user?.role === "elderly" && protegeId && dueDrugs) {
       const takenAt = nowLocalDateTimeIso();
       for (const d of dueDrugs) {
@@ -257,13 +268,32 @@ export default function MedicationAlarmScreen() {
         });
       }
     }
+    // 이 시각 알람 알림 제거 — 안 지우면 openAlarmIfDisplayed가 빈 화면으로 재진입시킴
+    notifee
+      .getDisplayedNotifications()
+      .then((displayed) => {
+        for (const d of displayed) {
+          const data = d.notification.data as
+            | { type?: string; time?: string }
+            | undefined;
+          if (
+            data?.type === "MEDICATION_REMINDER" &&
+            data.time === time &&
+            d.notification.id
+          ) {
+            notifee
+              .cancelDisplayedNotification(d.notification.id)
+              .catch(() => {});
+          }
+        }
+      })
+      .catch(() => {});
     toastBridge.show("약 복용을 기록했어요", "success");
     closeAlarm();
   };
-
   const handleSnooze = () => {
     stopSpeech();
-    player.pause();
+    safeStopAudio();
     scheduleMedicationSnooze(time).catch((e) =>
       console.warn("[MED-ALARM] snooze failed:", e),
     );
@@ -296,23 +326,18 @@ export default function MedicationAlarmScreen() {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
         >
-          {dueDrugs.map((d, i) => (
-            <View
-              key={d.id}
-              style={[
-                styles.drugRow,
-                i < dueDrugs.length - 1 && styles.drugRowBorder,
-              ]}
-            >
-              <Ionicons
-                name="medkit"
-                size={26}
-                color={Colors.brand.primary}
-                style={styles.drugIcon}
-              />
-              <Text style={styles.drugName}>{d.medicationName}</Text>
-            </View>
-          ))}
+          <View style={styles.drugRow}>
+            <Ionicons
+              name="medkit"
+              size={26}
+              color={Colors.brand.primary}
+              style={styles.drugIcon}
+            />
+            <Text style={styles.drugName}>
+              {getMealLabel(time) ??
+                dueDrugs.map((d) => d.medicationName).join(" · ")}
+            </Text>
+          </View>
         </ScrollView>
         <Text style={styles.countText}>
           지금 드실 약 {dueDrugs.length}가지예요

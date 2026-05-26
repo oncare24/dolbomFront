@@ -162,9 +162,6 @@ api.interceptors.response.use(
       toastBridge.show("다시 로그인해주세요", "warning");
     }
     // ─── 5xx → 자동 Toast ───
-    else if (status && status >= 500) {
-      toastBridge.show("서버에 일시적인 문제가 있어요", "error");
-    }
     // ─── 응답 없음 → 네트워크 끊김 또는 타임아웃 ───
     else if (!error.response) {
       if (error.code === "ECONNABORTED") {

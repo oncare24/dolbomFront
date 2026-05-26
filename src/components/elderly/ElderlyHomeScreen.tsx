@@ -34,7 +34,7 @@ import { FloatingSosButton } from "../../components/elderly/FloatingSosButton";
 import { HomeMedicationAnalysisCard } from "../../components/elderly/HomeMedicationAnalysisCard";
 import { useMyGuardians } from "../../hooks/useMyGuardians";
 import { useSelfMedicationAnalysis } from "../../hooks/useDrugSafety";
-
+import { getMealLabel } from "../../utils/mealLabel";
 type Nav = NativeStackNavigationProp<RootStackParamList, "ElderlyHome">;
 
 export default function ElderlyHomeScreen() {
@@ -70,7 +70,9 @@ export default function ElderlyHomeScreen() {
       totalCount: summary.totalCount,
       takenCount: summary.takenCount,
       nextTime: summary.nextTime,
-      nextLabel: summary.nextMedicationName,
+      nextLabel:
+        (summary.nextTime ? getMealLabel(summary.nextTime) : null) ??
+        summary.nextMedicationName,
       nextIsOverdue: summary.nextIsOverdue,
     };
   }, [schedulesQuery.data, logsQuery.data]);

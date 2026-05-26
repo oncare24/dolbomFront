@@ -148,42 +148,70 @@ export default function MedicationEditScreen() {
             existingByTime.set(s.scheduledTime, e);
           }
 
-          // 추가(신규) / 유지(수정)
+          // 1) 시간이 그대로인 슬롯: 제자리 수정 (이름/요일/기간 갱신)
+          const matchedNew = new Set<string>();
+          const matchedOld = new Set<string>();
           for (const t of newTimes) {
             const ex = existingByTime.get(t);
-            if (ex) {
-              await updateMutation.mutateAsync({
-                scheduleId: ex.repId,
-                input: {
-                  medicationName: data.medicationName,
-                  scheduledTime: t,
-                  scheduleType: data.scheduleType,
-                  daysOfWeek: daysList,
-                  active: true,
-                  ...period,
-                },
-              });
-            } else {
-              await createMutation.mutateAsync({
-                protegeId,
+            if (!ex) continue;
+            matchedNew.add(t);
+            matchedOld.add(t);
+            await updateMutation.mutateAsync({
+              scheduleId: ex.repId,
+              input: {
                 medicationName: data.medicationName,
                 scheduledTime: t,
                 scheduleType: data.scheduleType,
                 daysOfWeek: daysList,
+                active: true,
                 ...period,
-              });
-            }
+              },
+            });
           }
 
-          // 빠진 시간 삭제
-          for (const [t, ex] of existingByTime) {
-            if (!newTimes.includes(t)) {
-              for (const rowId of ex.rowIds) {
-                await deleteMutation.mutateAsync({
-                  scheduleId: rowId,
-                  protegeId,
-                });
-              }
+          // 2) 시간이 바뀐 슬롯: 기존 행 id 재사용해 "제자리 시간 변경"
+          //    (삭제+생성 X → scheduleId·등록시각 보존 → 복용기록 유지, 카운트 정상)
+          const leftoverOld = [...existingByTime.entries()]
+            .filter(([t]) => !matchedOld.has(t))
+            .sort((a, b) => a[0].localeCompare(b[0]));
+          const leftoverNew = newTimes
+            .filter((t) => !matchedNew.has(t))
+            .sort((a, b) => a.localeCompare(b));
+
+          const pairCount = Math.min(leftoverOld.length, leftoverNew.length);
+          for (let i = 0; i < pairCount; i++) {
+            await updateMutation.mutateAsync({
+              scheduleId: leftoverOld[i][1].repId,
+              input: {
+                medicationName: data.medicationName,
+                scheduledTime: leftoverNew[i],
+                scheduleType: data.scheduleType,
+                daysOfWeek: daysList,
+                active: true,
+                ...period,
+              },
+            });
+          }
+
+          // 3) 남는 새 시간 → 신규 생성
+          for (let i = pairCount; i < leftoverNew.length; i++) {
+            await createMutation.mutateAsync({
+              protegeId,
+              medicationName: data.medicationName,
+              scheduledTime: leftoverNew[i],
+              scheduleType: data.scheduleType,
+              daysOfWeek: daysList,
+              ...period,
+            });
+          }
+
+          // 4) 남는 기존 시간 → 삭제
+          for (let i = pairCount; i < leftoverOld.length; i++) {
+            for (const rowId of leftoverOld[i][1].rowIds) {
+              await deleteMutation.mutateAsync({
+                scheduleId: rowId,
+                protegeId,
+              });
             }
           }
 

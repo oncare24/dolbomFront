@@ -47,6 +47,12 @@ export function buildMedicationDailySummary(
 
   const today = todayDateString(now);
 
+  const takenScheduleIds = new Set(
+    todayLogs
+      .map((l) => l.scheduleId)
+      .filter((id): id is number => id !== null),
+  );
+
   const todaySchedules = schedules.filter((s) => {
     if (!s.active) return false;
     if (s.scheduleType === "WEEKLY" && !s.daysOfWeek.includes(todayDow))
@@ -54,20 +60,18 @@ export function buildMedicationDailySummary(
     if (s.startDate && today < s.startDate) return false;
     if (s.endDate && today > s.endDate) return false;
     // 등록 시각 이후 회차만: 오늘 이 시각이 등록 시각보다 전이면 오늘은 제외(내일부터).
+    // 단, 이미 먹은 회차는 항상 포함 — 먹었으면 오늘 회차가 맞으므로 숨기지 않는다.
     const [hh, mm] = s.scheduledTime.split(":").map(Number);
     const doseToday = new Date(now);
     doseToday.setHours(hh, mm, 0, 0);
-    if (s.createdAt && doseToday.getTime() < new Date(s.createdAt).getTime())
+    if (
+      s.createdAt &&
+      doseToday.getTime() < new Date(s.createdAt).getTime() &&
+      !takenScheduleIds.has(s.id)
+    )
       return false;
     return true;
   });
-
-  const takenScheduleIds = new Set(
-    todayLogs
-      .map((l) => l.scheduleId)
-      .filter((id): id is number => id !== null),
-  );
-
   const remaining = todaySchedules
     .filter((s) => !takenScheduleIds.has(s.id))
     .map((s) => {
@@ -81,11 +85,22 @@ export function buildMedicationDailySummary(
     remaining.find((x) => x.minutes >= nowMinutes) ?? remaining[0];
   const nextIsOverdue = upcoming != null && upcoming.minutes < nowMinutes;
 
-  const takenCount = todaySchedules.length - remaining.length;
-  const allDone = todaySchedules.length > 0 && remaining.length === 0;
+  // 봉지(시각) 단위로 카운트 — 오늘의 약 상세 화면과 동일 기준.
+  const timeSlots = new Map<string, MedicationSchedule[]>();
+  for (const s of todaySchedules) {
+    const list = timeSlots.get(s.scheduledTime) ?? [];
+    list.push(s);
+    timeSlots.set(s.scheduledTime, list);
+  }
+  const slotEntries = [...timeSlots.values()];
+  const totalCount = slotEntries.length;
+  const takenCount = slotEntries.filter((g) =>
+    g.every((s) => takenScheduleIds.has(s.id)),
+  ).length;
+  const allDone = totalCount > 0 && takenCount === totalCount;
 
   return {
-    totalCount: todaySchedules.length,
+    totalCount,
     takenCount,
     nextTime: upcoming?.schedule.scheduledTime ?? null,
     nextMedicationName: upcoming?.schedule.medicationName ?? null,

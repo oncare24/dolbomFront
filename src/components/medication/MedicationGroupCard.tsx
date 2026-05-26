@@ -17,7 +17,7 @@ import { haptic } from "../../utils/haptics";
 import { toKoreanTime } from "../../utils/medicationFormat";
 import type { DayOfWeek } from "../../types/medication";
 import type { MedicationGroup } from "../../utils/medicationGroup";
-
+import { getMealLabel } from "../../utils/mealLabel";
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface Props {
@@ -51,13 +51,17 @@ function periodLabel(
   startDate?: string | null,
   endDate?: string | null,
 ): string | null {
-  const fmt = (ymd: string) => {
-    const [, m, d] = ymd.split("-");
-    return `${parseInt(m, 10)}월 ${parseInt(d, 10)}일`;
+  const fmt = (ymd: string, withYear: boolean) => {
+    const [y, m, d] = ymd.split("-");
+    return `${withYear ? `${y}년 ` : ""}${parseInt(m, 10)}월 ${parseInt(
+      d,
+      10,
+    )}일`;
   };
-  if (startDate && endDate) return `${fmt(startDate)}~${fmt(endDate)}`;
-  if (endDate) return `${fmt(endDate)}까지`;
-  if (startDate) return `${fmt(startDate)}부터`;
+  if (startDate && endDate)
+    return `${fmt(startDate, true)}~${fmt(endDate, false)}`;
+  if (endDate) return `${fmt(endDate, true)}까지`;
+  if (startDate) return `${fmt(startDate, true)}부터`;
   return null;
 }
 
@@ -82,6 +86,18 @@ export function MedicationGroupCard({
 
   const repeat = repeatLabel(group);
   const period = periodLabel(group.startDate, group.endDate);
+  const bags = bagLabels(group.times);
+  function bagLabels(times: string[]): string | null {
+    const uniq = Array.from(
+      new Set(
+        times
+          .map((t) => getMealLabel(t))
+          .filter((l): l is string => l !== null),
+      ),
+    );
+    return uniq.length > 0 ? uniq.join(" · ") : null;
+  }
+
   return (
     <AnimatedPressable
       onPress={handlePress}
@@ -147,6 +163,17 @@ export function MedicationGroupCard({
           </View>
         ))}
       </View>
+
+      {bags && (
+        <AppText
+          variant="caption"
+          audience={audience}
+          color="secondary"
+          style={{ marginTop: Spacing.sm }}
+        >
+          {bags}
+        </AppText>
+      )}
 
       {takenToday > 0 && (
         <AppText

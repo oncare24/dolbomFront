@@ -17,7 +17,7 @@ import Animated, {
 import { AppText } from "../common/Text";
 import { Colors, Elevation, Radius, Spacing } from "../../theme";
 import { toKoreanTime } from "../../utils/medicationFormat";
-
+import { getMealLabel } from "../../utils/mealLabel";
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 function slotLabel(time: string): string {
@@ -45,7 +45,7 @@ export function MedicationSlotCard({
 }: Props) {
   const showNext = isNext && !isTaken;
   const namesText = medicationNames.join(" · ");
-
+  const slotDisplay = getMealLabel(time) ?? namesText;
   const a11yLabel = [
     `${toKoreanTime(time)}`,
     namesText,
@@ -79,7 +79,7 @@ export function MedicationSlotCard({
             style={styles.medName}
             numberOfLines={3}
           >
-            {namesText}
+            {slotDisplay}
           </AppText>
         </View>
         <CheckButton isTaken={isTaken} onPress={onPress} />

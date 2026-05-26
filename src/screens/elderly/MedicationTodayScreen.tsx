@@ -95,6 +95,10 @@ export default function MedicationTodayScreen() {
   const { slots, totalSlots, takenSlots, allDone } = useMemo(() => {
     const todayDow = DOW_ORDER[now.getDay()];
 
+    const takenIds = new Set(
+      logs.map((l) => l.scheduleId).filter((id): id is number => id !== null),
+    );
+
     const filtered = schedules.filter((s) => {
       if (!s.active) return false;
       if (s.scheduleType === "WEEKLY" && !s.daysOfWeek.includes(todayDow))
@@ -102,16 +106,26 @@ export default function MedicationTodayScreen() {
       if (s.startDate && today < s.startDate) return false;
       if (s.endDate && today > s.endDate) return false;
       // 등록 시각 이후 회차만: 오늘 이 시각이 등록 시각보다 전이면 오늘은 제외(내일부터).
+      // 단, 이미 먹은 회차는 항상 포함 — 먹었으면 오늘 회차가 맞으므로 숨기지 않는다.
       const [hh, mm] = s.scheduledTime.split(":").map(Number);
       const doseToday = new Date(now);
       doseToday.setHours(hh, mm, 0, 0);
-      if (s.createdAt && doseToday.getTime() < new Date(s.createdAt).getTime())
+      // if (
+      //   s.createdAt &&
+      //   doseToday.getTime() < new Date(s.createdAt).getTime() &&
+      //   !takenIds.has(s.id)
+      // )
+      //   return false;
+
+      if (
+        s.createdAt &&
+        doseToday.getTime() < new Date(s.createdAt).getTime() &&
+        !takenIds.has(s.id)
+      )
         return false;
+
       return true;
     });
-    const takenIds = new Set(
-      logs.map((l) => l.scheduleId).filter((id): id is number => id !== null),
-    );
 
     // 같은 시각끼리 묶기
     const byTime = new Map<string, MedicationSchedule[]>();
