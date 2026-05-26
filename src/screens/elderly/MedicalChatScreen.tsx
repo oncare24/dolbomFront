@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as Location from "expo-location";
-
+import { getAccurateLocation } from "../../utils/getAccurateLocation";
 import { AppHeader } from "../../components/common/Header";
 import { ChatBubble } from "../../components/elderly/ChatBubble";
 import { TypingIndicator } from "../../components/elderly/TypingIndicator";
@@ -41,19 +41,11 @@ function genMessageId(): string {
 async function tryGetCurrentLocation(): Promise<
   { latitude: number; longitude: number } | undefined
 > {
-  try {
-    const { status } = await Location.getForegroundPermissionsAsync();
-    if (status !== "granted") return undefined;
-    const loc = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Balanced,
-    });
-    return {
-      latitude: loc.coords.latitude,
-      longitude: loc.coords.longitude,
-    };
-  } catch {
-    return undefined;
-  }
+  const loc = await getAccurateLocation();
+  if (!loc) return undefined; // 위치 못 받음 → 백엔드 폴백(안전구역)
+  const acc = loc.coords.accuracy ?? Number.MAX_VALUE;
+  if (acc > 500) return undefined; // 끝내 너무 부정확하면 집(안전구역)으로
+  return { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
 }
 
 export default function MedicalChatScreen() {

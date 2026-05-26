@@ -24,6 +24,7 @@ interface Props {
   group: MedicationGroup;
   audience: "elderly" | "guardian";
   takenToday: number;
+  missedToday: number;
   total: number;
   onPress: () => void;
 }
@@ -46,16 +47,25 @@ function repeatLabel(group: MedicationGroup): string {
   return `${base} · 하루 ${group.times.length}번`;
 }
 
-function periodLabel(endDate?: string | null): string | null {
-  if (!endDate) return null;
-  const [, m, d] = endDate.split("-");
-  return `${parseInt(m, 10)}월 ${parseInt(d, 10)}일까지`;
+function periodLabel(
+  startDate?: string | null,
+  endDate?: string | null,
+): string | null {
+  const fmt = (ymd: string) => {
+    const [, m, d] = ymd.split("-");
+    return `${parseInt(m, 10)}월 ${parseInt(d, 10)}일`;
+  };
+  if (startDate && endDate) return `${fmt(startDate)}~${fmt(endDate)}`;
+  if (endDate) return `${fmt(endDate)}까지`;
+  if (startDate) return `${fmt(startDate)}부터`;
+  return null;
 }
 
 export function MedicationGroupCard({
   group,
   audience,
   takenToday,
+  missedToday,
   total,
   onPress,
 }: Props) {
@@ -71,8 +81,7 @@ export function MedicationGroupCard({
   };
 
   const repeat = repeatLabel(group);
-  const period = periodLabel(group.endDate);
-
+  const period = periodLabel(group.startDate, group.endDate);
   return (
     <AnimatedPressable
       onPress={handlePress}
@@ -148,6 +157,20 @@ export function MedicationGroupCard({
           {isElderly
             ? `오늘 ${takenToday}번 드심`
             : `오늘 ${takenToday}/${total} 복용`}
+        </AppText>
+      )}
+      {missedToday > 0 && (
+        <AppText
+          variant="caption"
+          audience={audience}
+          style={{
+            color: Colors.semantic.warning,
+            marginTop: takenToday > 0 ? 2 : Spacing.sm,
+          }}
+        >
+          {isElderly
+            ? `아직 ${missedToday}번 안 드셨어요`
+            : `안 드심 ${missedToday}건`}
         </AppText>
       )}
     </AnimatedPressable>

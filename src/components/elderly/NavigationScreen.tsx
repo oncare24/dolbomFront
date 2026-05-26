@@ -37,28 +37,28 @@ import {
   haversine,
   distanceToPath,
   passedCoordsUpTo,
-  formatDistance,
-  formatDuration,
 } from "../../utils/haversine";
 import NavigationCardUI from "./NavigationCardUI";
 import { shouldShowMarker } from "../../utils/markerFilter";
 import { Colors, Spacing, Radius, Touch } from "../../theme";
+import { buildSeniorSpeech } from "../../utils/seniorGuide";
 
 // ── 상수 ──
-const CARD_ADVANCE_THRESHOLD_M = 20; // 도착 지점 도달 판정 (목적지 전용)
-const NEAR_POINT_FOR_PASS_M = 50; // 통과 감지 범위 (이탈 50m와 짝)
+const CARD_ADVANCE_THRESHOLD_M = 50; // 도착 지점 도달 판정 (목적지 전용)
+const NEAR_POINT_FOR_PASS_M = 30; // 통과 감지 범위
 const DISTANCE_INCREASE_TOLERANCE_M = 6; // 최소 거리에서 이만큼 멀어지면 통과
-const OFF_ROUTE_THRESHOLD_M = 50; // 경로 이탈 거리
-const OFF_ROUTE_REROUTE_DEBOUNCE_MS = 3000; // 3초 지속 시 재탐색
+const OFF_ROUTE_THRESHOLD_M = 30; // 경로 이탈 거리 (도보 기준)
+const OFF_ROUTE_REROUTE_DEBOUNCE_MS = 2000; // 2초 지속 시 재탐색
+const REROUTE_ACCURACY_THRESHOLD_M = 30; // 이탈 판정은 정확한 GPS일 때만 (헛재탐색 방지)
 const GPS_ACCURACY_THRESHOLD_M = 100;
-const GPS_INTERVAL_MS = 2000;
+const GPS_INTERVAL_MS = 1000;
 const GPS_DISTANCE_FILTER_M = 3;
-const ANNOUNCE_PREVIEW_M = 50; // 이만큼 다가오면 "잠시 후 …" 예고
-const ANNOUNCE_ACT_M = 15; // 코앞 — "…하세요" 실행 안내 (필요하면 20까지 올려도 됨)
-const MAP_ZOOM = 17;
-const CAMERA_DURATION_MS = 300;
+const NEAR_ANNOUNCE_M = 35; // 다음 안내가 이만큼 가까우면 한 번만 안내 (예고 생략)
+const ANNOUNCE_ACT_M = 15; // 코앞 — 실행 안내
+const MAP_ZOOM = 18;
+const MAP_TILT = 60; // 카메라 기울임(원근감) — 차량 내비처럼 앞을 보는 시야
 const ARRIVAL_END_DELAY_MS = 3000;
-
+const HEADING_DEADBAND_DEG = 15; // 이만큼 이상 방향이 바뀔 때만 회전(작은 GPS 흔들림 무시)
 interface Props {
   tmapResponse: TmapResponse;
   onNavigationEnd?: () => void;
@@ -89,8 +89,11 @@ export default function NavigationScreen({
   const mapRef = useRef<any>(null);
   const minDistRef = useRef<number>(Infinity);
   const offRouteSinceRef = useRef<number | null>(null);
+
   const previewSpokenRef = useRef(false);
   const actSpokenRef = useRef(false);
+  const isInitialRouteRef = useRef(true); // 최초 경로 진입 여부 (재탐색과 구분)
+  const isReroutingRef = useRef(false); // 재탐색 진행 중 — 새 경로 올 때까지 안내 멈춤
 
   useEffect(() => {
     onNavigationEndRef.current = onNavigationEnd;
@@ -107,12 +110,16 @@ export default function NavigationScreen({
     minDistRef.current = Infinity;
     offRouteSinceRef.current = null;
     setIsOffRoute(false);
+    isReroutingRef.current = false; // 새 경로 도착 → 재탐색 종료
 
     previewSpokenRef.current = true;
     actSpokenRef.current = true;
-    if (parsed.cards.length > 0) {
+    // 시작 안내는 최초 1회만. 재탐색으로 새 경로가 와도 "출발하세요"를 다시 말하지 않음
+    // (방금 나간 "경로를 벗어났어요" 음성을 끊지 않으려고)
+    if (isInitialRouteRef.current && parsed.cards.length > 0) {
       speakCard(parsed.cards[0]);
     }
+    isInitialRouteRef.current = false;
   }, [tmapResponse]);
 
   // ── GPS 실시간 추적 ──
@@ -173,18 +180,22 @@ export default function NavigationScreen({
       setCurrentLocation({ latitude, longitude });
 
       // heading: -1이면 정지/측정 불가 → 이전 값 유지
+      // heading: 움직일 때만 갱신(정지 시 -1 → 마지막 방향 유지, 지도가 빙빙 안 돎)
+      // 카메라 추적/회전/기울임은 아래 render의 controlled `camera` prop이 담당
+      // 작은 흔들림(GPS 노이즈)은 무시하고, 방향이 실제로 바뀔 때만 회전 → 지도 덜 흔들림
       if (coords.heading != null && coords.heading >= 0) {
-        setCurrentHeading(coords.heading);
+        const target = coords.heading;
+        setCurrentHeading((prev) => {
+          let diff = target - prev;
+          while (diff > 180) diff -= 360;
+          while (diff < -180) diff += 360;
+          return Math.abs(diff) < HEADING_DEADBAND_DEG ? prev : target;
+        });
       }
 
-      // 카메라 추적 (위치 + 진행방향 위로)
-      mapRef.current?.animateCameraTo({
-        latitude,
-        longitude,
-        zoom: MAP_ZOOM,
-        bearing: currentHeading,
-        duration: CAMERA_DURATION_MS,
-      });
+      // 재탐색 중에는 새 경로가 들어올 때까지 안내/카드전환 멈춤
+      // (이탈 음성 보호 + 옛 경로·새 경로 안내 겹침 방지)
+      if (isReroutingRef.current) return;
 
       const cards = r.cards;
       const idx = cardIndexRef.current;
@@ -204,12 +215,10 @@ export default function NavigationScreen({
       // 지점까지 가장 가까웠던 거리 기록 (통과 판정 기준점)
       if (dist < minDistRef.current) minDistRef.current = dist;
 
-      // 2. 음성 안내 — 회전 지점에 다가오는 거리에 따라 단계별 (화면 안 봐도 귀로 따라가게)
+      // 2. 음성 안내 — 회전 코앞에서 실행 안내 (예고는 구간 진입 시 announceOnEnter가 처리)
       announceByDistance(currentCard, dist);
 
       // 3. 카드 전환 판정
-      //    일반 안내: 지점에 가장 가까워졌다가 멀어지면 "통과"로 보고 전환 (표준 내비 방식)
-      //    도착 지점: 반경 안에 들어오면 도착으로 보고 종료
       const arrived = dist < CARD_ADVANCE_THRESHOLD_M;
       const passed =
         minDistRef.current < NEAR_POINT_FOR_PASS_M &&
@@ -218,6 +227,7 @@ export default function NavigationScreen({
       if (currentCard.pointType === "end") {
         if (arrived) {
           cardIndexRef.current = cards.length; // 이후 업데이트 무시
+          ttsSpeak("도착했습니다. 안내를 마칠게요.");
           setTimeout(
             () => onNavigationEndRef.current?.(),
             ARRIVAL_END_DELAY_MS,
@@ -228,12 +238,21 @@ export default function NavigationScreen({
         cardIndexRef.current = nextIdx;
         setCurrentCardIndex(nextIdx);
         minDistRef.current = Infinity;
-        previewSpokenRef.current = false; // 다음 카드 안내 단계 초기화
+        previewSpokenRef.current = false;
         actSpokenRef.current = false;
+
+        // 구간을 지나면 즉시 다음 안내 (침묵 구간 제거)
+        const enteredCard = cards[nextIdx];
+        const enteredDist = haversine(
+          latitude,
+          longitude,
+          enteredCard.point.latitude,
+          enteredCard.point.longitude,
+        );
+        announceOnEnter(enteredCard, enteredDist);
       }
 
-      // 3. 경로 이탈 감지 + 디바운스 재탐색
-      //    지금 걷는 구간 = 다가가는 지점(idx)으로 들어오는 구간 = cards[idx-1]
+      // 4. 경로 이탈 감지 + 디바운스 재탐색 (정확한 GPS일 때만)
       const walkedCard = idx > 0 ? cards[idx - 1] : currentCard;
       if (walkedCard.pathCoords.length > 0) {
         const pathDist = distanceToPath(
@@ -242,17 +261,25 @@ export default function NavigationScreen({
           walkedCard.pathCoords,
         );
         const off = pathDist > OFF_ROUTE_THRESHOLD_M;
+        const accurate =
+          coords.accuracy != null &&
+          coords.accuracy <= REROUTE_ACCURACY_THRESHOLD_M;
 
         if (off) {
-          setIsOffRoute(true);
-          if (offRouteSinceRef.current === null) {
-            offRouteSinceRef.current = Date.now();
-          } else if (
-            Date.now() - offRouteSinceRef.current >
-            OFF_ROUTE_REROUTE_DEBOUNCE_MS
-          ) {
-            offRouteSinceRef.current = null;
-            onRerouteRef.current?.({ latitude, longitude });
+          // 부정확한 측정으론 이탈로 단정하지 않음 (헛재탐색 방지)
+          if (accurate) {
+            setIsOffRoute(true);
+            if (offRouteSinceRef.current === null) {
+              offRouteSinceRef.current = Date.now();
+            } else if (
+              Date.now() - offRouteSinceRef.current >
+              OFF_ROUTE_REROUTE_DEBOUNCE_MS
+            ) {
+              offRouteSinceRef.current = null;
+              isReroutingRef.current = true;
+              ttsSpeak("경로를 벗어났어요. 길을 다시 안내할게요.");
+              onRerouteRef.current?.({ latitude, longitude });
+            }
           }
         } else {
           setIsOffRoute(false);
@@ -267,19 +294,33 @@ export default function NavigationScreen({
     ttsSpeak(card.speech || card.actionLabel);
   }
 
-  // 회전 지점까지 남은 거리에 따라 음성을 단계로 나눠 안내. 각 단계는 카드당 1회.
+  // 구간 진입 시(직전 지점 통과 직후) 1회 안내.
+  //  - 다음 지점이 코앞이면 실행 안내 한 번으로 끝 (중복 방지)
+  //  - 멀면 예고만, 실행 안내는 코앞에서 announceByDistance가 처리
+  function announceOnEnter(card: NavigationCard, dist: number) {
+    const base = card.speech || card.actionLabel;
+    if (dist <= NEAR_ANNOUNCE_M) {
+      previewSpokenRef.current = true;
+      actSpokenRef.current = true;
+      ttsSpeak(base);
+    } else {
+      previewSpokenRef.current = true;
+      // 건물명 있으면 문장에 이미 들어있음 / 없으면 거리 대신 말로
+      const headsUp =
+        card.pointType === "end" || card.landmark
+          ? base
+          : `조금 더 가서 ${base}`;
+      ttsSpeak(headsUp);
+    }
+  }
+
+  // 회전 코앞에서 실행 안내. 예고(건물명 포함)와 겹치지 않게 여기선 짧게(건물명 없이).
+  //  예) 예고 "세븐일레븐에서 오른쪽으로 도세요" → 실행 "오른쪽으로 도세요"
   function announceByDistance(card: NavigationCard, dist: number) {
     if (!actSpokenRef.current && dist <= ANNOUNCE_ACT_M) {
       actSpokenRef.current = true;
-      previewSpokenRef.current = true; // 예고는 건너뜀
-      ttsSpeak(card.speech || card.actionLabel);
-      return;
-    }
-    if (!previewSpokenRef.current && dist <= ANNOUNCE_PREVIEW_M) {
       previewSpokenRef.current = true;
-      const base = card.speech || card.actionLabel;
-      // 도착 카드는 "잠시 후 곧 도착합니다"가 어색하므로 그대로 읽음.
-      ttsSpeak(card.pointType === "end" ? base : `잠시 후 ${base}`);
+      ttsSpeak(buildSeniorSpeech(card.turnType, ""));
     }
   }
 
@@ -326,14 +367,6 @@ export default function NavigationScreen({
       : null;
   const passedCoords = getPassedCoords();
 
-  // 도착 예상 시각 ("오후 1시 32분 도착")
-  const arrivalDate = new Date(Date.now() + route.totalDuration * 1000);
-  const ah = arrivalDate.getHours();
-  const am = arrivalDate.getMinutes();
-  const period = ah < 12 ? "오전" : "오후";
-  const displayH = ah === 0 ? 12 : ah > 12 ? ah - 12 : ah;
-  const arrivalText = `${period} ${displayH}시 ${am}분 도착`;
-
   return (
     <View style={styles.container}>
       <StatusBar
@@ -351,12 +384,25 @@ export default function NavigationScreen({
           longitude: route.cards[0].point.longitude,
           zoom: MAP_ZOOM,
         }}
+        camera={
+          currentLocation
+            ? {
+                latitude: currentLocation.latitude,
+                longitude: currentLocation.longitude,
+                zoom: MAP_ZOOM,
+                tilt: MAP_TILT,
+                bearing: currentHeading,
+              }
+            : undefined
+        }
         isShowLocationButton={false}
         isShowCompass={false}
         isShowScaleBar={false}
         isRotateGesturesEnabled={false}
+        animationDuration={500}
+        animationEasing="Linear"
         minZoom={14}
-        maxZoom={19}
+        maxZoom={21}
       >
         {/* 전체 경로 */}
         {route.fullPath.length > 1 && (
@@ -374,18 +420,22 @@ export default function NavigationScreen({
             width={10}
           />
         )}
-        {/* 안내지점 마커 */}
-        {route.cards.filter(shouldShowMarker).map((card) => (
-          <NaverMapMarkerOverlay
-            key={`point-${card.index}`}
-            latitude={card.point.latitude}
-            longitude={card.point.longitude}
-            image={{ symbol: "gray" }}
-            width={32}
-            height={42}
-            anchor={{ x: 0.5, y: 1 }}
-          />
-        ))}
+        {/* 목적지 마커 — 빨강+라벨로 한눈에 (중간 꺾임 핀은 표시 안 함: 경로선+음성으로 안내) */}
+        <NaverMapMarkerOverlay
+          key="destination"
+          latitude={route.cards[route.cards.length - 1].point.latitude}
+          longitude={route.cards[route.cards.length - 1].point.longitude}
+          image={{ symbol: "red" }}
+          width={40}
+          height={52}
+          anchor={{ x: 0.5, y: 1 }}
+          caption={{
+            text: "목적지",
+            textSize: 16,
+            color: "#1A1A1A",
+            haloColor: "#FFFFFF",
+          }}
+        />
         {/* 현재 위치 — 진행방향 화살표 */}
         {currentLocation && (
           <NaverMapMarkerOverlay
@@ -414,13 +464,6 @@ export default function NavigationScreen({
           nextCard={nextCard}
           distanceToNext={distanceToNext}
         />
-
-        <View style={styles.arrivalChip}>
-          <Text style={styles.arrivalText}>
-            {formatDistance(route.totalDistance)} ·{" "}
-            {formatDuration(route.totalDuration)} · {arrivalText}
-          </Text>
-        </View>
 
         {isOffRoute && (
           <View style={styles.offRouteBanner}>
@@ -505,24 +548,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     gap: Spacing.xs,
   },
-  arrivalChip: {
-    alignSelf: "center",
-    backgroundColor: Colors.surface.card,
-    borderRadius: 999,
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.md,
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
-  arrivalText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: Colors.text.primary,
-    letterSpacing: 0.2,
-  },
+
   offRouteBanner: {
     alignSelf: "center",
     backgroundColor: Colors.semantic.danger,

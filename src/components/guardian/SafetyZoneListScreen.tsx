@@ -14,6 +14,7 @@ import {
 import {
   useNavigation,
   useRoute,
+  useFocusEffect,
   type RouteProp,
 } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -106,6 +107,13 @@ export default function SafetyZoneListScreen() {
   const isFull = safeZones.length >= SAFETY_ZONE_MAX_COUNT;
 
   const [refreshing, setRefreshing] = useState(false);
+  // 화면 진입 시 ward 요약(상태·위치라벨)을 최신화 — 구역 추가/삭제 후 옛 "미설정" 방지
+  useFocusEffect(
+    useCallback(() => {
+      refetchWards();
+    }, [refetchWards]),
+  );
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {

@@ -29,6 +29,8 @@ export interface MedicationDailySummary {
   /** 다음 복용 약 이름. 모두 완료 또는 일정 없음이면 null */
   nextMedicationName: string | null;
   /** 일정이 있고 모두 복용 완료된 경우 true */
+  nextIsOverdue: boolean;
+
   allDone: boolean;
 }
 
@@ -43,11 +45,22 @@ export function buildMedicationDailySummary(
 ): MedicationDailySummary {
   const todayDow = DOW_MAP[now.getDay()];
 
-  const todaySchedules = schedules.filter(
-    (s) =>
-      s.active &&
-      (s.scheduleType === "DAILY" || s.daysOfWeek.includes(todayDow)),
-  );
+  const today = todayDateString(now);
+
+  const todaySchedules = schedules.filter((s) => {
+    if (!s.active) return false;
+    if (s.scheduleType === "WEEKLY" && !s.daysOfWeek.includes(todayDow))
+      return false;
+    if (s.startDate && today < s.startDate) return false;
+    if (s.endDate && today > s.endDate) return false;
+    // 등록 시각 이후 회차만: 오늘 이 시각이 등록 시각보다 전이면 오늘은 제외(내일부터).
+    const [hh, mm] = s.scheduledTime.split(":").map(Number);
+    const doseToday = new Date(now);
+    doseToday.setHours(hh, mm, 0, 0);
+    if (s.createdAt && doseToday.getTime() < new Date(s.createdAt).getTime())
+      return false;
+    return true;
+  });
 
   const takenScheduleIds = new Set(
     todayLogs
@@ -66,6 +79,7 @@ export function buildMedicationDailySummary(
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   const upcoming =
     remaining.find((x) => x.minutes >= nowMinutes) ?? remaining[0];
+  const nextIsOverdue = upcoming != null && upcoming.minutes < nowMinutes;
 
   const takenCount = todaySchedules.length - remaining.length;
   const allDone = todaySchedules.length > 0 && remaining.length === 0;
@@ -75,6 +89,7 @@ export function buildMedicationDailySummary(
     takenCount,
     nextTime: upcoming?.schedule.scheduledTime ?? null,
     nextMedicationName: upcoming?.schedule.medicationName ?? null,
+    nextIsOverdue,
     allDone,
   };
 }

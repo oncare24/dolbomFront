@@ -71,6 +71,7 @@ export default function ElderlyHomeScreen() {
       takenCount: summary.takenCount,
       nextTime: summary.nextTime,
       nextLabel: summary.nextMedicationName,
+      nextIsOverdue: summary.nextIsOverdue,
     };
   }, [schedulesQuery.data, logsQuery.data]);
 

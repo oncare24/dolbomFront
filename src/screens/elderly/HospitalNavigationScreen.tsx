@@ -34,7 +34,7 @@ import {
 import { ApiException } from "../../services/api";
 import type { RootStackParamList } from "../../types/navigation";
 import type { TmapResponse } from "../../types/tmap";
-import * as Location from "expo-location";
+import { getAccurateLocation } from "../../utils/getAccurateLocation";
 type Nav = NativeStackNavigationProp<RootStackParamList, "HospitalNavigation">;
 type RouteParams = RouteProp<RootStackParamList, "HospitalNavigation">;
 
@@ -67,17 +67,11 @@ export default function HospitalNavigationScreen() {
       // (문진 시점 좌표 result.userLatitude/Longitude는 이미 이동했을 수 있음)
       let actualStartLat = startLat;
       let actualStartLon = startLon;
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === "granted") {
-          const pos = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.High,
-          });
-          actualStartLat = pos.coords.latitude;
-          actualStartLon = pos.coords.longitude;
-        }
-      } catch {
-        // 못 받으면 fallback으로 문진 시점 좌표 사용
+      // 출발지 = 추적해서 수렴한 현재 위치 (최대 6초, 못 받으면 전달받은 좌표 유지)
+      const loc = await getAccurateLocation();
+      if (loc) {
+        actualStartLat = loc.coords.latitude;
+        actualStartLon = loc.coords.longitude;
       }
 
       try {

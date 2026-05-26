@@ -5,6 +5,7 @@ import notifee, {
   AndroidImportance,
   AndroidVisibility,
 } from "react-native-notify-kit";
+import { requestInSequence } from "../utils/permissionQueue";
 
 export function configureNotificationHandler() {
   Notifications.setNotificationHandler({
@@ -78,7 +79,9 @@ export async function requestPermissionAndGetFcmToken(): Promise<
   let finalStatus = existingStatus;
 
   if (existingStatus !== "granted") {
-    const { status } = await Notifications.requestPermissionsAsync();
+    const { status } = await requestInSequence(() =>
+      Notifications.requestPermissionsAsync(),
+    );
     finalStatus = status;
   }
 

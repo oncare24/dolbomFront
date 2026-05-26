@@ -56,9 +56,9 @@ export function MedicationStatusCard({ status, onPress }: Props) {
     ? "등록된 약이 없어요. 약 추가하기"
     : allDone
     ? "오늘 약 모두 복용 완료"
-    : `오늘 약, ${status.takenCount}회 중 ${status.totalCount}회 복용, 다음 ${
-        status.nextLabel ?? ""
-      } ${status.nextTime ?? ""}`;
+    : `오늘 약, ${status.takenCount}회 중 ${status.totalCount}회 복용, ${
+        status.nextIsOverdue ? "아직 안 드신 약" : "다음"
+      } ${status.nextLabel ?? ""} ${status.nextTime ?? ""}`;
 
   return (
     <AnimatedPressable
@@ -114,7 +114,7 @@ export function MedicationStatusCard({ status, onPress }: Props) {
           <>
             <View style={styles.nextRow}>
               <AppText variant="caption" color="secondary">
-                다음 복용
+                {status.nextIsOverdue ? "아직 안 드신 약" : "다음 복용"}
               </AppText>
               <AppText
                 variant="bodyBold"

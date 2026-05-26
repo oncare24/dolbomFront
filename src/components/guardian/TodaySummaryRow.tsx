@@ -4,14 +4,18 @@
 // 미준비 데이터는 null 전달 → 카드 자동 비활성 + "준비 중" 표시.
 
 import React from "react";
-import { StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { AppText } from "../common/Text";
 import { TodaySummaryCard } from "./TodaySummaryCard";
-import { Spacing } from "../../theme";
+import { Colors, Radius, Spacing } from "../../theme";
+import { haptic } from "../../utils/haptics";
 
 interface Props {
   medTakenCount: number;
   medTotalCount: number;
+  /** 마감 지난 미복용 회차 수 */
+  medMissedCount: number;
   /** null = 데이터 미준비 */
   anomalyCount: number | null;
   onMedPress?: () => void;
@@ -20,6 +24,7 @@ interface Props {
 export function TodaySummaryRow({
   medTakenCount,
   medTotalCount,
+  medMissedCount,
   anomalyCount,
   onMedPress,
 }: Props) {
@@ -55,6 +60,37 @@ export function TodaySummaryRow({
           disabled={anomalyCount === null}
         />
       </View>
+
+      {medMissedCount > 0 && (
+        <Pressable
+          onPress={() => {
+            haptic.light();
+            onMedPress?.();
+          }}
+          android_ripple={{ color: Colors.gray[200], borderless: false }}
+          accessibilityRole="button"
+          accessibilityLabel={`안 드신 약 ${medMissedCount}건, 복약 일정 확인하기`}
+          style={styles.missedBanner}
+        >
+          <Ionicons
+            name="alert-circle"
+            size={18}
+            color={Colors.semantic.warning}
+          />
+          <AppText
+            variant="caption"
+            audience="guardian"
+            style={styles.missedText}
+          >
+            안 드신 약 {medMissedCount}건 · 확인하기
+          </AppText>
+          <Ionicons
+            name="chevron-forward"
+            size={16}
+            color={Colors.semantic.warning}
+          />
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -70,5 +106,20 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: "row",
     gap: Spacing.sm,
+  },
+  missedBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.semantic.warningBg,
+    borderRadius: Radius.md,
+  },
+  missedText: {
+    flex: 1,
+    color: Colors.semantic.warning,
+    fontWeight: "600",
   },
 });

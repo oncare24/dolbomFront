@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Linking, Pressable, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
@@ -95,25 +95,6 @@ export default function MedicationAnalysisWaitingScreen() {
     }
   }, [authInput, session, mutateAsync, navigation, reset, toast, qc]);
 
-  const handleOpenKakao = useCallback(async () => {
-    try {
-      const supported = await Linking.canOpenURL("kakaotalk://");
-      if (supported) {
-        await Linking.openURL("kakaotalk://");
-      } else {
-        toast.show({
-          message: "카카오톡이 설치되어 있지 않아요",
-          variant: "error",
-        });
-      }
-    } catch {
-      toast.show({
-        message: "카카오톡을 열 수 없어요",
-        variant: "error",
-      });
-    }
-  }, [toast]);
-
   const handleCancel = useCallback(() => {
     reset();
     navigation.goBack();
@@ -150,30 +131,11 @@ export default function MedicationAnalysisWaitingScreen() {
             카카오톡으로 인증 메시지를 보냈어요.{"\n"}
             메시지를 열어 인증을 완료해 주세요.
           </AppText>
-
-          <Pressable
-            onPress={handleOpenKakao}
-            style={({ pressed }) => [
-              styles.openKakaoBtn,
-              pressed && styles.openKakaoBtnPressed,
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="카카오톡 열기"
-          >
-            <Ionicons name="open-outline" size={22} color="#3A1D1D" />
-            <AppText
-              variant="bodyBold"
-              audience="elderly"
-              style={styles.openKakaoText}
-            >
-              카카오톡 열기
-            </AppText>
-          </Pressable>
         </View>
 
         <View style={styles.steps}>
           {[
-            "카카오톡을 열어 주세요",
+            "휴대폰 위에 뜬 카카오톡 알림을 눌러 주세요",
             "인증 알림에서 “인증하기”를 눌러 주세요",
             "완료되면 아래 “인증 완료” 버튼을 눌러 주세요",
           ].map((text, idx) => (
@@ -220,6 +182,7 @@ export default function MedicationAnalysisWaitingScreen() {
               audience="elderly"
               onPress={handleCancel}
               disabled={isPending}
+              style={styles.cancelButton}
             />
           </View>
           <View style={styles.confirmWrap}>
@@ -318,5 +281,8 @@ const styles = StyleSheet.create({
   },
   confirmWrap: {
     flex: 1,
+  },
+  cancelButton: {
+    minHeight: 72,
   },
 });

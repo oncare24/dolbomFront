@@ -141,12 +141,17 @@ export default function MedicationListScreen() {
                   (s) =>
                     getMedicationTodayStatus(s, todayLogs)?.kind === "TAKEN",
                 ).length;
+                const missedToday = g.schedules.filter(
+                  (s) =>
+                    getMedicationTodayStatus(s, todayLogs)?.kind === "MISSED",
+                ).length;
                 return (
                   <MedicationGroupCard
                     key={g.key}
                     group={g}
                     audience={audience}
                     takenToday={takenToday}
+                    missedToday={missedToday}
                     total={g.times.length}
                     onPress={() =>
                       navigation.navigate("MedicationEdit", {

@@ -47,7 +47,7 @@ export function MedicationSlotCard({
   const namesText = medicationNames.join(" · ");
 
   const a11yLabel = [
-    `${slotLabel(time)} ${toKoreanTime(time)}`,
+    `${toKoreanTime(time)}`,
     namesText,
     isTaken ? "복용 완료" : "미복용",
     showNext ? "다음 복용" : null,
@@ -71,7 +71,7 @@ export function MedicationSlotCard({
             </AppText>
           )}
           <AppText variant="h3" color="primary">
-            {slotLabel(time)} · {toKoreanTime(time)}
+            {toKoreanTime(time)}
           </AppText>
           <AppText
             variant="body"

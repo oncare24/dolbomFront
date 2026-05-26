@@ -45,6 +45,10 @@ function cardTypeToTurnType(type: BackendNavigationCard["type"]): number {
       return 14;
     case "CROSSWALK":
       return 211;
+    case "CROSSWALK_LEFT":
+      return 212;
+    case "CROSSWALK_RIGHT":
+      return 213;
     case "STRAIGHT":
     case "WALK":
       return 11;

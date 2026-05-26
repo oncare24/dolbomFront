@@ -12,6 +12,7 @@
 import { useEffect } from "react";
 import * as Location from "expo-location";
 import { BACKGROUND_LOCATION_TASK } from "../services/backgroundLocationTask";
+import { requestInSequence } from "../utils/permissionQueue";
 
 // const REPORT_INTERVAL_MS = 30 * 60 * 1000; // 30분
 const REPORT_INTERVAL_MS = 1 * 60 * 1000; // 검증용 1분 (발표 후 30분으로 복원)
@@ -27,7 +28,9 @@ export function useBackgroundLocation(enabled: boolean) {
       // 포그라운드 권한
       console.log("[BG-HOOK] start");
 
-      const fg = await Location.requestForegroundPermissionsAsync();
+      const fg = await requestInSequence(() =>
+        Location.requestForegroundPermissionsAsync(),
+      );
       console.log("[BG-HOOK] fg =", fg.status); // ← 추가
 
       if (fg.status !== "granted") {
@@ -36,7 +39,9 @@ export function useBackgroundLocation(enabled: boolean) {
       }
 
       // 백그라운드 권한 (Android: ACCESS_BACKGROUND_LOCATION)
-      const bg = await Location.requestBackgroundPermissionsAsync();
+      const bg = await requestInSequence(() =>
+        Location.requestBackgroundPermissionsAsync(),
+      );
       console.log("[BG-HOOK] bg =", bg.status); // ← 추가
 
       if (bg.status !== "granted") {

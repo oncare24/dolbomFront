@@ -162,7 +162,7 @@ function slotLabel(hour: number): string {
 
 function buildSlotNotification(time: string, hour: number) {
   return {
-    title: `${slotLabel(hour)} 약 드실 시간이에요`,
+    title: "약 드실 시간이에요",
     body: "드실 약을 확인해 주세요",
     data: {
       type: "MEDICATION_REMINDER",
@@ -365,9 +365,9 @@ export async function clearAllMedicationReminders(): Promise<void> {
     const triggers = await notifee.getTriggerNotifications();
     const zombieIds = triggers
       .filter((t) => t.notification.data?.type === "MEDICATION_REMINDER")
+      .filter((t) => t.notification.data?.snooze !== "true") // 스누즈는 sweep 면제
       .map((t) => t.notification.id)
       .filter((id): id is string => !!id);
-
     for (const id of zombieIds) {
       try {
         await notifee.cancelTriggerNotification(id);
@@ -385,4 +385,22 @@ export async function clearAllMedicationReminders(): Promise<void> {
 
   await saveMap({});
   console.log("[MED-LOCAL] all reminders cleared (map + OS)");
+}
+
+/**
+ * "지금은 어려워요" → 10분 뒤 1회성 재알람.
+ * 원래 시각(time)을 그대로 실어 → 알람 화면이 그 시각 약을 다시 찾게 함.
+ * data.snooze="true" 로 표시 → 동기화 sweep 에서 면제(안 지워짐).
+ */
+export async function scheduleMedicationSnooze(time: string): Promise<void> {
+  if (!isElderly()) return;
+  const SNOOZE_MINUTES = 10;
+  const hour = parseInt(time.split(":")[0], 10);
+  const base = buildSlotNotification(time, hour);
+  const notif = { ...base, data: { ...base.data, snooze: "true" } };
+  await notifee.createTriggerNotification(notif, {
+    type: TriggerType.TIMESTAMP,
+    timestamp: Date.now() + SNOOZE_MINUTES * 60 * 1000,
+    alarmManager: { type: AlarmType.SET_EXACT_AND_ALLOW_WHILE_IDLE },
+  }); // repeatFrequency 없음 = 1회성
 }

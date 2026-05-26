@@ -37,7 +37,10 @@ import { nowLocalDateTimeIso } from "../../utils/medicationSummary";
 import type { RootStackParamList } from "../../types/navigation";
 import { Colors } from "../../theme/colors";
 import type { DayOfWeek } from "../../types/medication";
-
+import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { scheduleMedicationSnooze } from "../../services/medicationReminderService";
+import { VolumeManager } from "react-native-volume-manager";
 type Nav = NativeStackNavigationProp<RootStackParamList, "MedicationAlarm">;
 type RouteProps = RouteProp<RootStackParamList, "MedicationAlarm">;
 
@@ -76,7 +79,7 @@ export default function MedicationAlarmScreen() {
   const user = useAuthStore((s) => s.user);
   const protegeId = user?.id ?? 0;
   const takeMutation = useTakeMedication();
-
+  const insets = useSafeAreaInsets();
   const player = useAudioPlayer(
     require("../../assets/sounds/medication_alarm.mp3"),
   );
@@ -114,15 +117,23 @@ export default function MedicationAlarmScreen() {
     });
   }, [schedules, todayLogs, time, today]);
 
-  const closeRef = useRef(() => {
-    if (navigation.canGoBack()) navigation.goBack();
-    else navigation.replace("ElderlyHome");
-  });
+  const closingRef = useRef(false);
+  const closeRef = useRef(() => {});
   closeRef.current = () => {
-    if (navigation.canGoBack()) navigation.goBack();
-    else navigation.replace("ElderlyHome");
+    if (closingRef.current) return;
+    closingRef.current = true;
+    navigation.reset({ index: 0, routes: [{ name: "ElderlyHome" }] });
   };
   const closeAlarm = () => closeRef.current();
+
+  // // 먹을 약이 없으면(이미 다 복용 / 오늘 해당 없음) 화면 안 띄우고 자동 종료.
+  // useEffect(() => {
+  //   if (dueDrugs === null) return; // 로딩 중
+  //   if (dueDrugs.length === 0) {
+  //     stopSpeech();
+  //     closeRef.current();
+  //   }
+  // }, [dueDrugs]);
 
   // 먹을 약이 없으면(이미 다 복용 / 오늘 해당 없음) 화면 안 띄우고 자동 종료.
   useEffect(() => {
@@ -131,6 +142,15 @@ export default function MedicationAlarmScreen() {
       stopSpeech();
       closeRef.current();
     }
+  }, [dueDrugs]);
+
+  // 알람 화면 뜨면 미디어 볼륨을 70%로 올려 확실히 들리게.
+  // (기기 볼륨이 낮아도 알람은 들리게)
+  useEffect(() => {
+    if (!dueDrugs || dueDrugs.length === 0) return;
+    VolumeManager.setVolume(0.6, { type: "music", showUI: false }).catch((e) =>
+      console.warn("[MED-ALARM] set volume failed:", e),
+    );
   }, [dueDrugs]);
 
   // 진입 즉시 같은 시각 헤드업/표시 알림 cancel — 풀스크린과 중복 노출 방지.
@@ -241,6 +261,16 @@ export default function MedicationAlarmScreen() {
     closeAlarm();
   };
 
+  const handleSnooze = () => {
+    stopSpeech();
+    player.pause();
+    scheduleMedicationSnooze(time).catch((e) =>
+      console.warn("[MED-ALARM] snooze failed:", e),
+    );
+    toastBridge.show("10분 뒤 다시 알려드릴게요", "info");
+    closeAlarm();
+  };
+
   // 로딩 중이거나 먹을 약이 없으면(자동 종료 진행 중) 빈 화면.
   if (!dueDrugs || dueDrugs.length === 0) {
     return <View style={styles.container} />;
@@ -256,7 +286,7 @@ export default function MedicationAlarmScreen() {
         barStyle="light-content"
       />
       <View style={styles.header}>
-        <Text style={styles.label}>{slotLabel(hour)} 약 드실 시간이에요</Text>
+        <Text style={styles.label}>약 드실 시간이에요</Text>
         <Text style={styles.time}>{formatTime(time)}</Text>
       </View>
 
@@ -274,6 +304,12 @@ export default function MedicationAlarmScreen() {
                 i < dueDrugs.length - 1 && styles.drugRowBorder,
               ]}
             >
+              <Ionicons
+                name="medkit"
+                size={26}
+                color={Colors.brand.primary}
+                style={styles.drugIcon}
+              />
               <Text style={styles.drugName}>{d.medicationName}</Text>
             </View>
           ))}
@@ -283,7 +319,12 @@ export default function MedicationAlarmScreen() {
         </Text>
       </View>
 
-      <View style={styles.actions}>
+      <View
+        style={[
+          styles.actions,
+          { paddingBottom: Math.max(insets.bottom, 16) + 24 },
+        ]}
+      >
         <Pressable
           style={({ pressed }) => [
             styles.btn,
@@ -295,6 +336,18 @@ export default function MedicationAlarmScreen() {
           accessibilityLabel="약 다 먹었어요"
         >
           <Text style={styles.btnPrimaryText}>다 먹었어요</Text>
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.btnSecondary,
+            pressed && styles.btnSecondaryPressed,
+          ]}
+          onPress={handleSnooze}
+          accessibilityRole="button"
+          accessibilityLabel="지금은 어려워요. 10분 뒤에 다시 알려드려요"
+        >
+          <Text style={styles.btnSecondaryText}>지금은 어려워요</Text>
         </Pressable>
       </View>
     </View>
@@ -338,7 +391,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   drugRow: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 18,
+  },
+  drugIcon: {
+    marginRight: 12,
   },
   drugRowBorder: {
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -379,5 +437,20 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: Colors.brand.primary,
     letterSpacing: 0.2,
+  },
+  btnSecondary: {
+    minHeight: 56,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 12,
+  },
+  btnSecondaryPressed: {
+    opacity: 0.6,
+  },
+  btnSecondaryText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.85)",
   },
 });

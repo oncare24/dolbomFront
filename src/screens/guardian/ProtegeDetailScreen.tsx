@@ -10,10 +10,11 @@ import { Alert, StatusBar, StyleSheet, View } from "react-native";
 import {
   useNavigation,
   useRoute,
+  useFocusEffect,
   type RouteProp,
 } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-
+import { getMedicationTodayStatus } from "../../utils/medicationStatus";
 import { ScreenContainer } from "../../components/common/Layout";
 import { AppHeader } from "../../components/common/Header";
 import { DangerButton } from "../../components/common/Button";
@@ -83,11 +84,15 @@ export default function ProtegeDetailScreen() {
     useWardAnalysisState(protegeId);
 
   const medSummary = buildMedicationDailySummary(schedules, todayLogs);
+  const medMissedCount = schedules.filter(
+    (s) => getMedicationTodayStatus(s, todayLogs)?.kind === "MISSED",
+  ).length;
   const anomalyCount = toAnomalyCount(analysisState?.inactivity?.statusCode);
 
   const unlinkMutation = useUnlinkWard();
 
   const [refreshing, setRefreshing] = useState(false);
+
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -101,7 +106,19 @@ export default function ProtegeDetailScreen() {
     } finally {
       setRefreshing(false);
     }
-  }, [refetchWards, refetchZones, refetchSchedules, refetchLogs, refetchAnalysis]);
+  }, [
+    refetchWards,
+    refetchZones,
+    refetchSchedules,
+    refetchLogs,
+    refetchAnalysis,
+  ]);
+
+  useFocusEffect(
+    useCallback(() => {
+      refetchWards();
+    }, [refetchWards]),
+  );
 
   const handleSafetyZone = () => {
     navigation.navigate("SafetyZoneList", { protegeId });
@@ -174,6 +191,7 @@ export default function ProtegeDetailScreen() {
         <TodaySummaryRow
           medTakenCount={medSummary.takenCount}
           medTotalCount={medSummary.totalCount}
+          medMissedCount={medMissedCount}
           anomalyCount={anomalyCount}
           onMedPress={handleMedication}
         />

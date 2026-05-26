@@ -34,6 +34,12 @@ const STATUS_MAP: Record<ProtegeStatusType, BannerStyle> = {
     iconColor: Colors.semantic.warning,
     title: "현재 안전구역 밖",
   },
+  active: {
+    bg: Colors.brand.primaryLight,
+    iconName: "location-outline",
+    iconColor: Colors.brand.primary,
+    title: "위치 보고 중",
+  },
   disconnected: {
     bg: Colors.gray[100],
     iconName: "cloud-offline",
@@ -41,7 +47,6 @@ const STATUS_MAP: Record<ProtegeStatusType, BannerStyle> = {
     title: "연결 끊김",
   },
   unknown: {
-    // ← 추가
     bg: Colors.gray[100],
     iconName: "help-circle-outline",
     iconColor: Colors.gray[600],
@@ -54,8 +59,7 @@ export function SafetyZoneStatusBanner({
   locationLabel,
   lastReportedMinutesAgo,
 }: Props) {
-  const style = STATUS_MAP[status];
-
+  const style = STATUS_MAP[status] ?? STATUS_MAP.unknown;
   return (
     <View style={[styles.banner, { backgroundColor: style.bg }]}>
       <View style={styles.iconWrap}>

@@ -24,6 +24,8 @@ export interface BackendNavigationCard {
     | "TURN_RIGHT"
     | "TURN_BACK"
     | "CROSSWALK"
+    | "CROSSWALK_LEFT"
+    | "CROSSWALK_RIGHT"
     | "START"
     | "ARRIVAL"
     | "OTHER";
