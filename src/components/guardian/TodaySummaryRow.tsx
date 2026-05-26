@@ -19,6 +19,8 @@ interface Props {
   /** null = 데이터 미준비 */
   anomalyCount: number | null;
   onMedPress?: () => void;
+  /** "이상 감지" 카드 탭 → 이상감지 기록 화면. anomalyCount 가 null 이면 카드가 비활성. */
+  onAnomalyPress?: () => void;
 }
 
 export function TodaySummaryRow({
@@ -27,6 +29,7 @@ export function TodaySummaryRow({
   medMissedCount,
   anomalyCount,
   onMedPress,
+  onAnomalyPress,
 }: Props) {
   const hasMed = medTotalCount > 0;
 
@@ -58,6 +61,7 @@ export function TodaySummaryRow({
           hint={anomalyCount === null ? "준비 중" : undefined}
           tone={anomalyCount === null ? "muted" : "neutral"}
           disabled={anomalyCount === null}
+          onPress={onAnomalyPress}
         />
       </View>
 

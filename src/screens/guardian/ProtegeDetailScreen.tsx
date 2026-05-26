@@ -4,6 +4,7 @@
 // 4A: HeroCard + LocationCard.
 // 4B: TodaySummaryRow 추가, 기존 복약 PreviewCard 제거.
 // [이상탐지] InactivityAnalysisBanner 추가 + TodaySummaryRow 의 "이상 감지" 카드 연결.
+// [이상감지 로그] 오늘의 요약 "이상 감지" 카드 탭 → AnomalyLog 화면.
 
 import React, { useCallback, useState } from "react";
 import { Alert, StatusBar, StyleSheet, View } from "react-native";
@@ -26,7 +27,6 @@ import { TodaySummaryRow } from "../../components/guardian/TodaySummaryRow";
 import { ProtegeMedicationAnalysisBanner } from "../../components/guardian/ProtegeMedicationAnalysisBanner";
 import { InactivityAnalysisBanner } from "../../components/guardian/InactivityAnalysisBanner";
 import { useMyWards, useUnlinkWard } from "../../hooks/useMyWards";
-
 import { useSafetyZones } from "../../hooks/useSafetyZones";
 import {
   useMedicationLogsByDate,
@@ -132,6 +132,11 @@ export default function ProtegeDetailScreen() {
     navigation.navigate("MedicationAnalysisDetail", { protegeId });
   };
 
+  // "이상 감지" 카드 탭 → 이상감지 기록 화면.
+  const handleAnomalyLog = () => {
+    navigation.navigate("AnomalyLog", { protegeId });
+  };
+
   const displayName = protege?.name ?? "피보호자";
 
   const handleUnlink = () => {
@@ -194,6 +199,7 @@ export default function ProtegeDetailScreen() {
           medMissedCount={medMissedCount}
           anomalyCount={anomalyCount}
           onMedPress={handleMedication}
+          onAnomalyPress={handleAnomalyLog}
         />
 
         <ProtegeMedicationAnalysisBanner

@@ -1,7 +1,8 @@
 // 알림 표시용 포맷 헬퍼.
 //
-// formatRelativeTime: 절대시각 → "3분 전" 같은 상대시각.
-//   너무 오래된 알림은 그냥 날짜 표시로 폴백.
+// formatRelativeTime: 절대시각 → "3분 전 · 오후 9:31" 같은 상대+절대 혼합 표기.
+//   상대 표현으로 "얼마나 됐는지" 감을 주고, 정확한 시각을 같이 붙여 확인 가능.
+//   7일 넘은 알림은 날짜만 표시.
 // notificationIcon: type별 Ionicons 이름 + 색상 매핑.
 
 import type { NotificationType } from "../types/notification";
@@ -11,23 +12,37 @@ const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
+/** Date → "오전/오후 H:MM" (12시간제). */
+function formatClock(d: Date): string {
+  const h = d.getHours();
+  const m = d.getMinutes();
+  const ampm = h < 12 ? "오전" : "오후";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${ampm} ${h12}:${String(m).padStart(2, "0")}`;
+}
+
 /**
- * ISO 시각 → "방금 전 / N분 전 / N시간 전 / N일 전 / 절대 날짜" 변환.
- * 알림센터 카드의 timestamp 표시용.
+ * ISO 시각 → 상대 + 절대 혼합 표기.
+ *   - 오늘 안: "방금 전 · 오후 9:31" / "3분 전 · 오후 9:31" / "5시간 전 · 오후 2:10"
+ *   - 1~6일 전: "3일 전 · 5월 22일"
+ *   - 7일 이상: "5월 22일"
+ * 알림센터·이상감지 기록 카드의 timestamp 표시용.
  */
 export function formatRelativeTime(isoString: string): string {
-  const past = new Date(isoString).getTime();
-  const now = Date.now();
-  const diff = now - past;
+  const pastDate = new Date(isoString);
+  const past = pastDate.getTime();
+  const diff = Date.now() - past;
+  const clock = formatClock(pastDate);
 
-  if (diff < MINUTE) return "방금 전";
-  if (diff < HOUR) return `${Math.floor(diff / MINUTE)}분 전`;
-  if (diff < DAY) return `${Math.floor(diff / HOUR)}시간 전`;
-  if (diff < 7 * DAY) return `${Math.floor(diff / DAY)}일 전`;
+  if (diff < MINUTE) return `방금 전 · ${clock}`;
+  if (diff < HOUR) return `${Math.floor(diff / MINUTE)}분 전 · ${clock}`;
+  if (diff < DAY) return `${Math.floor(diff / HOUR)}시간 전 · ${clock}`;
 
-  // 7일 넘으면 절대 날짜
-  const d = new Date(past);
-  return `${d.getMonth() + 1}월 ${d.getDate()}일`;
+  const dateStr = `${pastDate.getMonth() + 1}월 ${pastDate.getDate()}일`;
+  if (diff < 7 * DAY) return `${Math.floor(diff / DAY)}일 전 · ${dateStr}`;
+
+  // 7일 넘으면 날짜만
+  return dateStr;
 }
 
 /** 알림 타입별 아이콘 + 색상. Ionicons 이름. */
