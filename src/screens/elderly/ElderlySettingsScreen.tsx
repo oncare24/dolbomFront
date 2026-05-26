@@ -1,9 +1,10 @@
 // 피보호자 설정 화면.
-// 현재 항목: 사용법 다시 배우기 (튜토리얼 진입)
+// 현재 항목: 사용법 다시 배우기 (튜토리얼 진입), 로그아웃
 // 추후 추가 예정: 글자 크기, 음성 안내, 알림 등
 
 import React from "react";
 import {
+  Alert,
   Pressable,
   ScrollView,
   StatusBar,
@@ -17,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { AppHeader } from "../../components/common/Header";
 import { AppText } from "../../components/common/Text";
+import { useLogout } from "../../hooks/useLogout";
 import { Colors, Radius, Spacing, Touch } from "../../theme";
 import type { RootStackParamList } from "../../types/navigation";
 
@@ -26,8 +28,23 @@ export default function ElderlySettingsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<Nav>();
 
+  const logoutMutation = useLogout();
+
   const handleStartTutorial = () => {
     navigation.navigate("TutorialHome");
+  };
+
+  // 로그아웃 — 확인 후 useLogout 실행.
+  // 성공 시 인증 상태가 풀려 App.tsx 네비게이터가 자동으로 로그인 화면으로 전환됨.
+  const handleLogout = () => {
+    Alert.alert("로그아웃", "정말 로그아웃 하시겠어요?", [
+      { text: "취소", style: "cancel" },
+      {
+        text: "로그아웃",
+        style: "destructive",
+        onPress: () => logoutMutation.mutate(),
+      },
+    ]);
   };
 
   return (
@@ -83,6 +100,42 @@ export default function ElderlySettingsScreen() {
             color={Colors.text.disabled}
           />
         </Pressable>
+
+        {/* ─── 계정 섹션 ─── */}
+        <AppText
+          variant="caption"
+          audience="elderly"
+          color="secondary"
+          style={[styles.sectionTitle, styles.sectionGap]}
+        >
+          계정
+        </AppText>
+
+        <Pressable
+          onPress={handleLogout}
+          disabled={logoutMutation.isPending}
+          style={({ pressed }) => [
+            styles.row,
+            (pressed || logoutMutation.isPending) && styles.rowPressed,
+          ]}
+          android_ripple={{ color: Colors.surface.divider }}
+        >
+          <View style={[styles.iconWrap, styles.iconRed]}>
+            <Ionicons
+              name="log-out-outline"
+              size={28}
+              color={Colors.semantic.danger}
+            />
+          </View>
+          <View style={styles.rowText}>
+            <AppText variant="bodyBold" audience="elderly" color="danger">
+              {logoutMutation.isPending ? "로그아웃 중..." : "로그아웃"}
+            </AppText>
+            <AppText variant="caption" audience="elderly" color="secondary">
+              이 기기에서 로그아웃합니다
+            </AppText>
+          </View>
+        </Pressable>
       </ScrollView>
     </View>
   );
@@ -101,6 +154,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     marginBottom: Spacing.sm,
     fontWeight: "700",
+  },
+  sectionGap: {
+    marginTop: Spacing.lg,
   },
   row: {
     flexDirection: "row",
@@ -125,6 +181,9 @@ const styles = StyleSheet.create({
   },
   iconBlue: {
     backgroundColor: Colors.brand.primaryLight,
+  },
+  iconRed: {
+    backgroundColor: Colors.semantic.dangerBg,
   },
   rowText: {
     flex: 1,
