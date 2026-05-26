@@ -59,19 +59,6 @@ export function PrescriptionCardElderly({ group }: Props) {
             </AppText>
           )}
 
-          {/* 처방 횟수 (2회 이상만) */}
-          {group.count > 1 && (
-            <View style={styles.countBadge}>
-              <AppText
-                variant="caption"
-                audience="elderly"
-                style={styles.countText}
-              >
-                {group.count}번 처방받았어요
-              </AppText>
-            </View>
-          )}
-
           {/* 복용법 */}
           <AppText variant="bodyBold" audience="elderly" style={styles.dosage}>
             {dosage}

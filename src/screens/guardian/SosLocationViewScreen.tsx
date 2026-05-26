@@ -71,27 +71,6 @@ export default function SosLocationViewScreen() {
     });
   }, [data?.wardPhone]);
 
-  const openMapApp = useCallback(() => {
-    if (!data?.latitude || !data?.longitude) return;
-    haptic.light();
-    // 네이버지도 길찾기 스킴: 좌표 + destination 라벨
-    const label = encodeURIComponent(`${data.wardName}님 위치`);
-    const url =
-      `nmap://route/car?dlat=${data.latitude}&dlng=${data.longitude}` +
-      `&dname=${label}&appname=com.oncare24.bosalpim`;
-    // 폴백: 네이버지도 앱 미설치면 카카오맵, 그것도 없으면 웹 네이버지도
-    Linking.canOpenURL(url).then((supported) => {
-      if (supported) {
-        Linking.openURL(url);
-      } else {
-        const webUrl = `https://map.naver.com/v5/?c=${data.longitude},${data.latitude},15,0,0,0,dh`;
-        Linking.openURL(webUrl).catch(() => {
-          Alert.alert("연결 실패", "지도 앱을 열 수 없어요.");
-        });
-      }
-    });
-  }, [data?.latitude, data?.longitude, data?.wardName]);
-
   // ─── 로딩/에러 ────────────────────────────
   if (isLoading) {
     return (
@@ -231,32 +210,6 @@ export default function SosLocationViewScreen() {
             {data.wardName}에게 전화
           </AppText>
         </Pressable>
-
-        <Pressable
-          onPress={openMapApp}
-          disabled={!hasLocation}
-          accessibilityRole="button"
-          accessibilityLabel="지도 앱에서 길찾기"
-          style={({ pressed }) => [
-            styles.secondaryButton,
-            pressed && styles.secondaryButtonPressed,
-            !hasLocation && styles.disabled,
-          ]}
-        >
-          <Ionicons
-            name="navigate"
-            size={20}
-            color={hasLocation ? Colors.brand.primary : Colors.text.disabled}
-          />
-          <AppText
-            variant="bodyBold"
-            audience="guardian"
-            color={hasLocation ? "primary" : "disabled"}
-            style={styles.buttonLabel}
-          >
-            지도 앱에서 길찾기
-          </AppText>
-        </Pressable>
       </View>
     </ScreenContainer>
   );
@@ -350,30 +303,13 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.semantic.danger,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: Spacing.sm,
     ...Elevation.sm,
   },
   primaryButtonPressed: {
     opacity: 0.85,
   },
-  secondaryButton: {
-    flexDirection: "row",
-    height: 56,
-    borderRadius: Radius.lg,
-    backgroundColor: Colors.surface.card,
-    borderWidth: 1.5,
-    borderColor: Colors.brand.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  secondaryButtonPressed: {
-    backgroundColor: Colors.brand.primaryLight,
-  },
+
   buttonLabel: {
     marginLeft: Spacing.xs,
-  },
-  disabled: {
-    opacity: 0.5,
-    borderColor: Colors.gray[300],
   },
 });
