@@ -48,6 +48,9 @@ import TutorialMedicalChatScreen from "./src/screens/tutorial/TutorialMedicalCha
 import TutorialHospitalResultScreen from "./src/screens/tutorial/TutorialHospitalResultScreen";
 import TutorialNavigationScreen from "./src/screens/tutorial/TutorialNavigationScreen";
 import TutorialCompleteScreen from "./src/screens/tutorial/TutorialCompleteScreen";
+import TutorialMedicationScreen from "./src/screens/tutorial/TutorialMedicationScreen";
+import TutorialMedicationHomeScreen from "./src/screens/tutorial/TutorialMedicationHomeScreen";
+import TutorialMedicationTodayScreen from "./src/screens/tutorial/TutorialMedicationTodayScreen";
 
 // ─── 설정 화면 ───
 import ElderlySettingsScreen from "./src/screens/elderly/ElderlySettingsScreen";
@@ -429,6 +432,18 @@ function AppContent() {
             <Stack.Screen
               name="TutorialHospitalResult"
               component={TutorialHospitalResultScreen}
+            />
+            <Stack.Screen
+              name="TutorialMedicationHome"
+              component={TutorialMedicationHomeScreen}
+            />
+            <Stack.Screen
+              name="TutorialMedicationToday"
+              component={TutorialMedicationTodayScreen}
+            />
+            <Stack.Screen
+              name="TutorialMedication"
+              component={TutorialMedicationScreen}
             />
             <Stack.Screen
               name="TutorialNavigation"
