@@ -1,13 +1,11 @@
 // [튜토리얼] 완료 화면.
-// 시나리오 마지막 단계 후 진입. 병원 찾기 / 약 챙기기 공용.
-//   - route.params.topic 으로 어떤 튜토리얼이 끝났는지 구분 (없으면 "hospital")
+// 약 챙기기 튜토리얼 마지막 단계 후 진입.
 // "시작하기" 누르면 실제 ElderlyHome으로 popToTop.
 
 import React from "react";
 import { StatusBar, StyleSheet, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation, useRoute } from "@react-navigation/native";
-import type { RouteProp } from "@react-navigation/native";
+import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -16,16 +14,12 @@ import { Colors, Radius, Spacing, Touch } from "../../theme";
 import type { RootStackParamList } from "../../types/navigation";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "TutorialComplete">;
-type Route = RouteProp<RootStackParamList, "TutorialComplete">;
 
 export default function TutorialCompleteScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<Nav>();
-  const route = useRoute<Route>();
 
-  // 어떤 튜토리얼이 끝났는지 — 파라미터 없으면 기존 동작(병원 찾기) 유지.
-  const topic = route.params?.topic ?? "hospital";
-  const featureLabel = topic === "medication" ? "약 챙기기" : "병원 찾기";
+  const featureLabel = "약 챙기기";
 
   const handleStart = () => {
     // 튜토리얼 스택 전부 pop → 첫 화면(ElderlyHome)으로
