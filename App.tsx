@@ -259,27 +259,47 @@ function AppContent() {
   }, [isHydrated, isAuthenticated, role]);
 
   // 어르신 로그인 후: 풀스크린 알람에 필수인 권한이 빠졌으면 1회 권한 온보딩으로 안내.
-  //  - 알람으로 시작된 콜드스타트와 충돌하지 않도록 약간 지연 후, 현재 홈 화면일 때만 이동.
+  //  - 단발 타이머 대신 "네비 준비 + 홈 화면일 때"까지 재시도해 놓치지 않게 한다.
+  //  - 알람으로 시작된 콜드스타트(MedicationAlarm)와는 충돌하지 않도록 홈일 때만 이동.
+  //  - permPromptedRef로 세션당 1회만(닫고 "나중에 하기" 해도 재진입 안 함).
   const permPromptedRef = React.useRef(false);
   useEffect(() => {
     if (!isHydrated || !isAuthenticated || role !== "elderly") return;
     if (permPromptedRef.current) return;
-    permPromptedRef.current = true;
 
-    const t = setTimeout(async () => {
+    let cancelled = false;
+
+    const tryPrompt = async (attempt = 0) => {
+      if (cancelled || permPromptedRef.current) return;
+
+      // 네비게이션이 아직 준비 안 됐으면 잠깐 뒤 재시도.
+      if (!navigationRef.isReady()) {
+        if (attempt < 20) setTimeout(() => tryPrompt(attempt + 1), 150);
+        return;
+      }
+      // 알람 등 다른 흐름이 떠 있으면 끼어들지 않고 홈으로 돌아올 때까지 대기.
+      const current = navigationRef.getCurrentRoute()?.name;
+      if (current && current !== "ElderlyHome") {
+        if (attempt < 20) setTimeout(() => tryPrompt(attempt + 1), 300);
+        return;
+      }
+
       try {
-        if (!(await hasMissingCriticalPermissions())) return;
-        if (!navigationRef.isReady()) return;
-        // 알람 등 다른 흐름이 떠 있으면(예: MedicationAlarm) 끼어들지 않음.
-        const current = navigationRef.getCurrentRoute()?.name;
-        if (current && current !== "ElderlyHome") return;
+        if (!(await hasMissingCriticalPermissions())) return; // 다 허용 → 안 띄움
+        if (cancelled || permPromptedRef.current) return;
+        permPromptedRef.current = true;
         navigationRef.navigate("PermissionSetup");
       } catch (e) {
         console.warn("[PERM] onboarding check failed:", e);
       }
-    }, 1200);
+    };
 
-    return () => clearTimeout(t);
+    // 알람 콜드스타트 라우팅이 먼저 자리잡도록 살짝 양보 후 시작.
+    const t = setTimeout(() => tryPrompt(), 800);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
   }, [isHydrated, isAuthenticated, role]);
 
   useMedicationReminderSync();

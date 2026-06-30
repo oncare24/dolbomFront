@@ -223,7 +223,10 @@ export default function PermissionSetupScreen() {
 
       {/* ─── 푸터 ─── */}
       <View
-        style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}
+        style={[
+          styles.footer,
+          { paddingBottom: Math.max(insets.bottom, 16) + 20 },
+        ]}
       >
         {!allCriticalGranted && remainingCritical > 0 && (
           <View style={styles.remainingRow}>
@@ -427,6 +430,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.brand.primary,
     justifyContent: "center",
     alignItems: "center",
+    marginLeft: 12,
   },
   allowBtnPressed: {
     backgroundColor: Colors.brand.primaryDark,
@@ -443,6 +447,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 999,
     backgroundColor: "#FFFFFF",
+    marginLeft: 12,
   },
   grantedText: {
     fontSize: 15,

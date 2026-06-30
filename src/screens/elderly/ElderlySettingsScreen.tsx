@@ -136,14 +136,14 @@ export default function ElderlySettingsScreen() {
           />
         </Pressable>
 
-        {/* ─── 알림 섹션 ─── */}
+        {/* ─── 권한 섹션 ─── */}
         <AppText
           variant="caption"
           audience="elderly"
           color="secondary"
           style={[styles.sectionTitle, styles.sectionGap]}
         >
-          알림
+          권한
         </AppText>
 
         <Pressable
@@ -153,14 +153,14 @@ export default function ElderlySettingsScreen() {
         >
           <View style={[styles.iconWrap, styles.iconBlue]}>
             <Ionicons
-              name="notifications-outline"
+              name="shield-checkmark-outline"
               size={28}
               color={Colors.brand.primary}
             />
           </View>
           <View style={styles.rowText}>
             <AppText variant="bodyBold" audience="elderly" color="primary">
-              알람 권한 설정
+              권한 설정
             </AppText>
             <AppText variant="caption" audience="elderly" color="secondary">
               약 알람이 잘 울리도록 권한을 확인해요
