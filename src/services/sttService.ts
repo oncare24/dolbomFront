@@ -4,7 +4,7 @@
 // 현재: @jamsch/expo-speech-recognition (Google on-device, 무료, 즉시 동작)
 // 추후: CLOVA Speech (Naver, 백엔드 중계, 노인 발화 정확도 ↑)
 //
-// 화면(ChatInputBar)은 sttService 명령부 + useSttRecognition 훅만 import.
+// 음성 입력 화면은 sttService 명령부 + useSttRecognition 훅만 import.
 // 마이그레이션 시 이 파일 내부만 교체하면 화면 코드 0줄 변경.
 
 import { useState } from "react";

@@ -29,9 +29,6 @@ import {
 import LoginScreen from "./src/screens/auth/LoginScreen";
 import SignupScreen from "./src/screens/auth/SignupScreen";
 import ElderlyHomeScreen from "./src/components/elderly/ElderlyHomeScreen";
-import MedicalChatScreen from "./src/screens/elderly/MedicalChatScreen";
-import HospitalRecommendResultScreen from "./src/screens/elderly/HospitalRecommendResultScreen";
-import HospitalNavigationScreen from "./src/screens/elderly/HospitalNavigationScreen";
 import GuardianHomeScreen from "./src/components/guardian/GuardianHomeScreen";
 import ProtegeDetailScreen from "./src/screens/guardian/ProtegeDetailScreen";
 import AnomalyLogScreen from "./src/screens/guardian/AnomalyLogScreen";
@@ -43,10 +40,6 @@ import SosLocationViewScreen from "./src/screens/guardian/SosLocationViewScreen"
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { registerMedicationSyncTask } from "./src/services/medicationSyncTask";
 // ─── 튜토리얼 화면 ───
-import TutorialHomeScreen from "./src/screens/tutorial/TutorialHomeScreen";
-import TutorialMedicalChatScreen from "./src/screens/tutorial/TutorialMedicalChatScreen";
-import TutorialHospitalResultScreen from "./src/screens/tutorial/TutorialHospitalResultScreen";
-import TutorialNavigationScreen from "./src/screens/tutorial/TutorialNavigationScreen";
 import TutorialCompleteScreen from "./src/screens/tutorial/TutorialCompleteScreen";
 import TutorialMedicationScreen from "./src/screens/tutorial/TutorialMedicationScreen";
 import TutorialMedicationHomeScreen from "./src/screens/tutorial/TutorialMedicationHomeScreen";
@@ -58,13 +51,8 @@ import ElderlySettingsScreen from "./src/screens/elderly/ElderlySettingsScreen";
 import MedicationTodayScreen from "./src/screens/elderly/MedicationTodayScreen";
 import MedicationListScreen from "./src/screens/shared/MedicationListScreen";
 import MedicationEditScreen from "./src/screens/shared/MedicationEditScreen";
-import MedicationAnalysisIntroScreen from "./src/screens/elderly/MedicationAnalysisIntroScreen";
-import MedicationAnalysisFormScreen from "./src/screens/elderly/MedicationAnalysisFormScreen";
-import MedicationAnalysisWaitingScreen from "./src/screens/elderly/MedicationAnalysisWaitingScreen";
-import MedicationAnalysisResultScreen from "./src/screens/elderly/MedicationAnalysisResultScreen";
 import MedicationAnalysisDetailScreen from "./src/screens/guardian/MedicationAnalysisDetailScreen";
 import NotificationPreferencesScreen from "./src/screens/guardian/NotificationPreferencesScreen";
-import PrescriptionListScreen from "./src/screens/elderly/PrescriptionListScreen";
 import { useMedicationReminderSync } from "./src/hooks/useMedicationReminderSync";
 import { consumePendingAlarm } from "./src/services/medicationReminderService";
 import { hasMissingCriticalPermissions } from "./src/services/permissionService";
@@ -146,33 +134,6 @@ function AppContent() {
       tryNavigate();
     });
 
-    // expo-notifications 이벤트 (DRUG_ANALYSIS_REFRESH_REQUEST 등 기존 알림)
-    const handleExpoResponse = (
-      response: Notifications.NotificationResponse,
-    ) => {
-      const data = response.notification.request.content.data as
-        | { type?: string }
-        | undefined;
-
-      if (data?.type !== "DRUG_ANALYSIS_REFRESH_REQUEST") return;
-
-      const tryNavigate = (retry = 0) => {
-        if (navigationRef.isReady()) {
-          navigationRef.navigate("MedicationAnalysisIntro");
-        } else if (retry < 10) {
-          setTimeout(() => tryNavigate(retry + 1), 100);
-        }
-      };
-      tryNavigate();
-    };
-
-    const subExpo =
-      Notifications.addNotificationResponseReceivedListener(handleExpoResponse);
-
-    if (lastNotificationResponse) {
-      handleExpoResponse(lastNotificationResponse);
-    }
-
     // 앱이 알람으로 시작된 경우 (cold start)
     notifee.getInitialNotification().then((initial) => {
       if (!initial) return;
@@ -195,7 +156,6 @@ function AppContent() {
 
     return () => {
       unsubNotifee();
-      subExpo.remove();
     };
   }, [isHydrated, isAuthenticated, role, lastNotificationResponse]);
 
@@ -325,9 +285,6 @@ function AppContent() {
       };
 
       switch (data.type) {
-        case "DRUG_ANALYSIS_REFRESH_REQUEST":
-          tryNavigate(() => navigationRef.navigate("MedicationAnalysisIntro"));
-          break;
         case "WARD_INVITATION":
           // 받은 초대 목록을 강제로 새로 불러온 뒤 진입 → 새 초대가 바로 보임.
           qc.invalidateQueries({ queryKey: invitationKeys.received() });
@@ -471,15 +428,6 @@ function AppContent() {
         ) : role === "elderly" ? (
           <>
             <Stack.Screen name="ElderlyHome" component={ElderlyHomeScreen} />
-            <Stack.Screen name="MedicalChat" component={MedicalChatScreen} />
-            <Stack.Screen
-              name="HospitalRecommendResult"
-              component={HospitalRecommendResultScreen}
-            />
-            <Stack.Screen
-              name="HospitalNavigation"
-              component={HospitalNavigationScreen}
-            />
             <Stack.Screen
               name="ReceivedInvitations"
               component={InvitationListScreen}
@@ -493,15 +441,6 @@ function AppContent() {
             />
 
             {/* ─── 튜토리얼 화면 ─── */}
-            <Stack.Screen name="TutorialHome" component={TutorialHomeScreen} />
-            <Stack.Screen
-              name="TutorialMedicalChat"
-              component={TutorialMedicalChatScreen}
-            />
-            <Stack.Screen
-              name="TutorialHospitalResult"
-              component={TutorialHospitalResultScreen}
-            />
             <Stack.Screen
               name="TutorialMedicationHome"
               component={TutorialMedicationHomeScreen}
@@ -513,10 +452,6 @@ function AppContent() {
             <Stack.Screen
               name="TutorialMedication"
               component={TutorialMedicationScreen}
-            />
-            <Stack.Screen
-              name="TutorialNavigation"
-              component={TutorialNavigationScreen}
             />
             <Stack.Screen
               name="TutorialComplete"
@@ -533,31 +468,6 @@ function AppContent() {
             <Stack.Screen
               name="MedicationEdit"
               component={MedicationEditScreen}
-            />
-            <Stack.Screen
-              name="MedicationAnalysisIntro"
-              component={MedicationAnalysisIntroScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="MedicationAnalysisForm"
-              component={MedicationAnalysisFormScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="MedicationAnalysisWaiting"
-              component={MedicationAnalysisWaitingScreen}
-              options={{ headerShown: false, gestureEnabled: false }}
-            />
-            <Stack.Screen
-              name="MedicationAnalysisResult"
-              component={MedicationAnalysisResultScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="PrescriptionList"
-              component={PrescriptionListScreen}
-              options={{ headerShown: false }}
             />
             <Stack.Screen
               name="MedicationAlarm"

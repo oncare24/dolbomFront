@@ -4,8 +4,8 @@ import { Ionicons } from "@expo/vector-icons";
 
 export type IoniconName = keyof typeof Ionicons.glyphMap;
 
-// 메인 액션 3개 (병원찾기와 길안내는 한 흐름이라 통합)
-export type ElderlyHomeAction = "sos" | "hospital" | "medication";
+// 메인 액션
+export type ElderlyHomeAction = "sos" | "medication";
 
 // 오늘의 복약 상태
 export interface MedicationStatus {

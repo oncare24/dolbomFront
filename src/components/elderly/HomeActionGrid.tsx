@@ -1,4 +1,4 @@
-// 메인 액션 3개. SOS는 가로 강조, 병원/약은 정사각형 2열.
+// 메인 액션. SOS와 복약 일정 모두 가로 강조 카드.
 // 라이팅: 명사형 / 친숙한 한자어 / 5~12자 이내 (토스 TDS 가이드 준수).
 
 import React from "react";
@@ -23,30 +23,19 @@ export function HomeActionGrid({ onActionPress }: Props) {
         onPress={() => onActionPress("sos")}
       />
 
-      <View style={styles.row}>
-        <HomeActionCard
-          icon="medkit"
-          title="병원 찾기"
-          description="병원과 가는 길"
-          onPress={() => onActionPress("hospital")}
-        />
-        <HomeActionCard
-          icon="fitness"
-          title="복약 일정"
-          description="약 추가와 일정"
-          onPress={() => onActionPress("medication")}
-        />
-      </View>
+      <HomeActionCard
+        icon="fitness"
+        title="복약 일정"
+        description="약 추가와 일정"
+        layout="horizontal"
+        onPress={() => onActionPress("medication")}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    gap: Spacing.md,
-  },
-  row: {
-    flexDirection: "row",
     gap: Spacing.md,
   },
 });
