@@ -177,44 +177,44 @@ export default function PermissionSetupScreen() {
                 </View>
 
                 <View style={styles.cardCenter}>
-                  <View style={styles.cardTitleRow}>
-                    <Text style={styles.cardTitle}>{item.title}</Text>
-                    {!item.critical && (
-                      <View style={styles.optionalChip}>
-                        <Text style={styles.optionalChipText}>선택</Text>
-                      </View>
-                    )}
-                  </View>
+                  <Text style={styles.cardTitle}>{item.title}</Text>
                   <Text style={styles.cardDesc}>{item.description}</Text>
                 </View>
 
-                {granted ? (
-                  <View style={styles.grantedPill}>
-                    <Ionicons
-                      name="checkmark"
-                      size={18}
-                      color={Colors.semantic.success}
-                    />
-                    <Text style={styles.grantedText}>완료</Text>
-                  </View>
-                ) : (
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.allowBtn,
-                      pressed && styles.allowBtnPressed,
-                    ]}
-                    onPress={() => handleAllow(item.key)}
-                    disabled={busyKey === item.key}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${item.title} 허용하기`}
-                  >
-                    {busyKey === item.key ? (
-                      <ActivityIndicator color="#FFFFFF" />
-                    ) : (
-                      <Text style={styles.allowBtnText}>허용</Text>
-                    )}
-                  </Pressable>
-                )}
+                <View style={styles.cardAction}>
+                  {!item.critical && (
+                    <View style={styles.optionalChip}>
+                      <Text style={styles.optionalChipText}>선택</Text>
+                    </View>
+                  )}
+                  {granted ? (
+                    <View style={styles.grantedPill}>
+                      <Ionicons
+                        name="checkmark"
+                        size={18}
+                        color={Colors.semantic.success}
+                      />
+                      <Text style={styles.grantedText}>완료</Text>
+                    </View>
+                  ) : (
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.allowBtn,
+                        pressed && styles.allowBtnPressed,
+                      ]}
+                      onPress={() => handleAllow(item.key)}
+                      disabled={busyKey === item.key}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${item.title} 허용하기`}
+                    >
+                      {busyKey === item.key ? (
+                        <ActivityIndicator color="#FFFFFF" />
+                      ) : (
+                        <Text style={styles.allowBtnText}>허용</Text>
+                      )}
+                    </Pressable>
+                  )}
+                </View>
               </View>
             );
           })
@@ -392,8 +392,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingRight: 12,
   },
-  cardTitleRow: {
-    flexDirection: "row",
+  cardAction: {
     alignItems: "center",
   },
   cardTitle: {
@@ -402,7 +401,7 @@ const styles = StyleSheet.create({
     color: Colors.text.primary,
   },
   optionalChip: {
-    marginLeft: 10,
+    marginBottom: 8,
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 999,
@@ -430,7 +429,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.brand.primary,
     justifyContent: "center",
     alignItems: "center",
-    marginLeft: 12,
   },
   allowBtnPressed: {
     backgroundColor: Colors.brand.primaryDark,
@@ -447,7 +445,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 999,
     backgroundColor: "#FFFFFF",
-    marginLeft: 12,
   },
   grantedText: {
     fontSize: 15,
