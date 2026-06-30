@@ -39,7 +39,10 @@ import { Colors } from "../../theme/colors";
 import type { DayOfWeek } from "../../types/medication";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { scheduleMedicationSnooze } from "../../services/medicationReminderService";
+import {
+  scheduleMedicationSnooze,
+  clearPendingAlarm,
+} from "../../services/medicationReminderService";
 import { VolumeManager } from "react-native-volume-manager";
 import { getMealLabel } from "../../utils/mealLabel";
 type Nav = NativeStackNavigationProp<RootStackParamList, "MedicationAlarm">;
@@ -123,7 +126,14 @@ export default function MedicationAlarmScreen() {
   closeRef.current = () => {
     if (closingRef.current) return;
     closingRef.current = true;
-    navigation.reset({ index: 0, routes: [{ name: "ElderlyHome" }] });
+    // 화면을 닫으니 더 이상 재진입할 pending 알람도 정리.
+    clearPendingAlarm().catch(() => {});
+    try {
+      navigation.reset({ index: 0, routes: [{ name: "ElderlyHome" }] });
+    } catch (e) {
+      // ElderlyHome 라우트가 아직 없는 극단 상황(미복원) 흰 화면 방지.
+      console.warn("[MED-ALARM] close reset failed:", e);
+    }
   };
   const closeAlarm = () => closeRef.current();
 

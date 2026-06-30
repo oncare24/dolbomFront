@@ -11,6 +11,8 @@ export type RootStackParamList = {
   Sos: undefined;
   MedicationToday: undefined;
   MedicationAlarm: { time: string };
+  /** 복약 알람 권한 온보딩 (알림/전체화면/다른앱위에/정확한알람/배터리). */
+  PermissionSetup: undefined;
 
   MedicationList: { protegeId: number };
   MedicationEdit: { protegeId: number; scheduleId?: number };
