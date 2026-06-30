@@ -1,8 +1,6 @@
-// 복약 안전 분석 (Graph RAG) 타입 정의.
+// 복약 안전 분석 (Graph RAG) 타입 정의 (보호자 조회).
 //
 // 백엔드 API:
-//  - POST /api/drug-safety/auth/request   1차 카카오톡 간편인증 요청
-//  - POST /api/drug-safety/auth/confirm   2차 인증 확정 + 처방전 분석
 //  - GET  /api/drug-safety/analysis       캐시된 결과 조회 (wardId 옵션)
 
 /** 경고 유형 — Graph RAG 스펙. */
@@ -44,25 +42,6 @@ export interface Warning {
   explanation: string;
 }
 
-/** 사용자가 폼에서 입력하는 인증 정보 (1차). */
-export interface CodefAuthInput {
-  userName: string;
-  identity: string; // 주민번호 13자리 (하이픈 없이)
-  phoneNo: string; // 전화번호 10~11자리 (하이픈 없이)
-}
-
-/** 1차 인증 응답 — 2차 확정 시 그대로 다시 전달. */
-export interface CodefAuthSession {
-  jti: string;
-  twoWayTimestamp: number;
-  transactionId: string;
-}
-
-/** 2차 확정 입력 — 1차 입력 + 1차 응답. */
-export interface CodefConfirmInput extends CodefAuthInput {
-  jti: string;
-  twoWayTimestamp: number;
-}
 export interface AutoRegisterResult {
   registered: string[];
   skipped: string[];
