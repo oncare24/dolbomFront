@@ -14,6 +14,8 @@ export type RootStackParamList = {
   Sos: undefined;
   MedicationToday: undefined;
   MedicationAlarm: { time: string };
+  /** 복약 알람 권한 온보딩 (알림/전체화면/다른앱위에/정확한알람/배터리). */
+  PermissionSetup: undefined;
   /** LLM 문진 결과 (병원 카드 리스트). MedicalChat에서 done=true 시 자동 이동. */
   HospitalRecommendResult: { result: RecommendResponse };
   /** 길안내 화면. 결과 화면에서 모달로 도보/대중교통 선택 후 이동. */

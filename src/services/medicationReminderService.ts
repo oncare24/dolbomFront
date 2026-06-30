@@ -28,7 +28,11 @@ import { useAuthStore } from "../stores/authStore";
 import type { DayOfWeek, MedicationSchedule } from "../types/medication";
 
 const STORAGE_KEY = "medication-reminder-map-v2";
-const CHANNEL_ID = "medication_alarm_v2";
+const CHANNEL_ID = "medication_alarm_v3";
+// 화면 꺼짐/백그라운드에서 울린 알람의 "지금 띄워야 할 시각"을 임시 보관.
+// onBackgroundEvent(DELIVERED/PRESS)가 저장 → 앱이 떠오른 뒤 consume 해서 라우팅.
+const PENDING_ALARM_KEY = "pending-med-alarm";
+const PENDING_ALARM_TTL_MS = 30 * 60 * 1000; // 30분 지난 알람은 무시
 
 // JS Date.getDay(): 0=Sunday, 1=Monday, ..., 6=Saturday
 const WEEKDAY_INDEX: Record<DayOfWeek, number> = {
@@ -403,4 +407,48 @@ export async function scheduleMedicationSnooze(time: string): Promise<void> {
     timestamp: Date.now() + SNOOZE_MINUTES * 60 * 1000,
     alarmManager: { type: AlarmType.SET_EXACT_AND_ALLOW_WHILE_IDLE },
   }); // repeatFrequency 없음 = 1회성
+}
+
+// ────────────────────────────────────────────
+// 잠금/백그라운드 알람 라우팅용 pending 시각
+//   - getInitialNotification은 FSI 자동실행을 press로 안 보고 null을 주고,
+//     onForegroundEvent도 백그라운드 delivered를 못 잡는다.
+//   - 그래서 onBackgroundEvent(DELIVERED/PRESS)가 시각을 여기에 저장하고,
+//     앱이 인증 복원까지 끝낸 뒤 consume 해서 풀스크린 알람 화면으로 라우팅한다.
+// ────────────────────────────────────────────
+
+/** 화면 꺼짐/백그라운드에서 알람이 울리면(또는 눌리면) 그 시각을 저장. */
+export async function setPendingAlarm(time: string): Promise<void> {
+  try {
+    await AsyncStorage.setItem(
+      PENDING_ALARM_KEY,
+      JSON.stringify({ time, ts: Date.now() }),
+    );
+  } catch (e) {
+    console.warn("[MED-ALARM] setPendingAlarm failed:", e);
+  }
+}
+
+/** 저장된 pending 알람 시각을 읽고 비운다. 없거나 30분 지났으면 null. */
+export async function consumePendingAlarm(): Promise<string | null> {
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_ALARM_KEY);
+    if (!raw) return null;
+    await AsyncStorage.removeItem(PENDING_ALARM_KEY);
+    const { time, ts } = JSON.parse(raw) as { time?: string; ts?: number };
+    if (!time || !ts) return null;
+    if (Date.now() - ts > PENDING_ALARM_TTL_MS) return null;
+    return time;
+  } catch {
+    return null;
+  }
+}
+
+/** pending 알람 제거 (복용 완료/스누즈 등으로 더 안 띄울 때). */
+export async function clearPendingAlarm(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(PENDING_ALARM_KEY);
+  } catch {
+    /* 무시 */
+  }
 }

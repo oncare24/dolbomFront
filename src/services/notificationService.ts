@@ -43,13 +43,16 @@ export async function registerAndroidNotificationChannel(): Promise<void> {
     lightColor: "#3478F6",
   });
 
-  // notify-kit 약 알람 채널 v2 — sound 없이 진동 + 풀스크린만.
-  // sound는 풀스크린 진입 후 TTS가 대신 (무음/벨소리 OFF/DND 상태 모두 무관).
-  // Android NotificationChannel sound는 immutable이라 v1 → v2 ID 교체로 리셋.
+  // notify-kit 약 알람 채널 v3 — sound + 강한 진동.
+  //   - 풀스크린 진입 시: 알람 화면이 노래+TTS로 울림(주 경로).
+  //   - 풀스크린이 못 뜨는 경우(다른 앱 사용 중 + 권한 미허용): 이 채널 sound가
+  //     "무음 배너"가 되지 않도록 보장하는 안전망.
+  //   sound 추가는 채널 immutable이라 v2 → v3 ID 교체로 리셋.
   await notifee.createChannel({
-    id: "medication_alarm_v2",
+    id: "medication_alarm_v3",
     name: "약 복용 알람",
     importance: AndroidImportance.HIGH,
+    sound: "default",
     vibration: true,
     vibrationPattern: [300, 500, 300, 500],
     bypassDnd: true,
@@ -63,6 +66,7 @@ export async function registerAndroidNotificationChannel(): Promise<void> {
     () => {},
   );
   await notifee.deleteChannel("medication_alarm").catch(() => {});
+  await notifee.deleteChannel("medication_alarm_v2").catch(() => {});
 }
 
 export async function requestPermissionAndGetFcmToken(): Promise<

@@ -43,6 +43,7 @@ module.exports = {
         "USE_EXACT_ALARM",
         "USE_FULL_SCREEN_INTENT",
         "SYSTEM_ALERT_WINDOW", // ← 추가: 홈 화면/딴 앱 위에서도 풀스크린 알람 허용
+        "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS", // ← 배터리 최적화 제외 요청 다이얼로그
         "VIBRATE",
         "WAKE_LOCK",
         "RECEIVE_BOOT_COMPLETED",

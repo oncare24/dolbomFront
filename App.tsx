@@ -66,8 +66,11 @@ import MedicationAnalysisDetailScreen from "./src/screens/guardian/MedicationAna
 import NotificationPreferencesScreen from "./src/screens/guardian/NotificationPreferencesScreen";
 import PrescriptionListScreen from "./src/screens/elderly/PrescriptionListScreen";
 import { useMedicationReminderSync } from "./src/hooks/useMedicationReminderSync";
+import { consumePendingAlarm } from "./src/services/medicationReminderService";
+import { hasMissingCriticalPermissions } from "./src/services/permissionService";
 import notifee, { EventType } from "react-native-notify-kit";
 import MedicationAlarmScreen from "./src/screens/elderly/MedicationAlarmScreen";
+import PermissionSetupScreen from "./src/screens/elderly/PermissionSetupScreen";
 import { AppState } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { medicationKeys } from "./src/hooks/useMedications";
@@ -119,7 +122,7 @@ function AppContent() {
 
   // 피보호자 시점 알림 클릭 라우팅
   useEffect(() => {
-    if (!isAuthenticated || role !== "elderly") return;
+    if (!isHydrated || !isAuthenticated || role !== "elderly") return;
 
     // notifee 이벤트 (medication 알람 — 풀스크린 진입)
     const unsubNotifee = notifee.onForegroundEvent(({ type, detail }) => {
@@ -194,44 +197,110 @@ function AppContent() {
       unsubNotifee();
       subExpo.remove();
     };
-  }, [isAuthenticated, role, lastNotificationResponse]);
+  }, [isHydrated, isAuthenticated, role, lastNotificationResponse]);
 
-  // 백그라운드/잠금에서 알람이 울려 앱이 떠오른 경우(FSI), 표시 중인 약 알람을
-  // 찾아 약 알람 화면으로 진입. onForegroundEvent가 못 잡는 백그라운드 진입 보완.
+  // 백그라운드/잠금에서 알람이 울려 앱이 떠오른 경우(FSI) 풀스크린 알람 화면으로 진입.
+  // onForegroundEvent/getInitialNotification이 못 잡는 콜드/백그라운드 진입 보완.
+  // isHydrated 게이트로 인증 복원 전 진입(흰 화면·기록 누락)을 막는다.
   useEffect(() => {
-    if (!isAuthenticated || role !== "elderly") return;
+    if (!isHydrated || !isAuthenticated || role !== "elderly") return;
 
-    const openAlarmIfDisplayed = async () => {
+    let cancelled = false;
+
+    const navigateToAlarm = (time: string, retry = 0) => {
+      if (cancelled) return;
+      if (navigationRef.isReady()) {
+        navigationRef.navigate("MedicationAlarm", { time });
+      } else if (retry < 15) {
+        setTimeout(() => navigateToAlarm(time, retry + 1), 100);
+      }
+    };
+
+    // 1순위: 백그라운드 이벤트가 저장해둔 pending 알람 시각(라우팅 진실원천).
+    // 2순위: 트레이에 표시 중인 알람(pending이 아직 없을 때).
+    // 둘 다 없으면 콜드 스타트 직후 등록 지연 대비로 잠깐 재시도.
+    const routeToAlarm = async (attempt = 0) => {
+      if (cancelled) return;
       try {
+        const pending = await consumePendingAlarm();
+        if (pending) {
+          navigateToAlarm(pending);
+          return;
+        }
         const displayed = await notifee.getDisplayedNotifications();
         const alarm = displayed.find(
           (d) =>
             (d.notification.data as { type?: string } | undefined)?.type ===
             "MEDICATION_REMINDER",
         );
-        const data = alarm?.notification.data as { time?: string } | undefined;
-        if (!data?.time) return;
-        const time = data.time;
-
-        const tryNavigate = (retry = 0) => {
-          if (navigationRef.isReady()) {
-            navigationRef.navigate("MedicationAlarm", { time });
-          } else if (retry < 10) {
-            setTimeout(() => tryNavigate(retry + 1), 100);
-          }
-        };
-        tryNavigate();
+        const time = (
+          alarm?.notification.data as { time?: string } | undefined
+        )?.time;
+        if (time) {
+          navigateToAlarm(time);
+          return;
+        }
+        if (attempt < 5) {
+          setTimeout(() => routeToAlarm(attempt + 1), 200);
+        }
       } catch (e) {
-        console.warn("[MED-ALARM] openAlarmIfDisplayed failed:", e);
+        console.warn("[MED-ALARM] routeToAlarm failed:", e);
       }
     };
 
-    openAlarmIfDisplayed();
+    routeToAlarm();
     const sub = AppState.addEventListener("change", (state) => {
-      if (state === "active") openAlarmIfDisplayed();
+      if (state === "active") routeToAlarm();
     });
-    return () => sub.remove();
-  }, [isAuthenticated, role]);
+    return () => {
+      cancelled = true;
+      sub.remove();
+    };
+  }, [isHydrated, isAuthenticated, role]);
+
+  // 어르신 로그인 후: 풀스크린 알람에 필수인 권한이 빠졌으면 1회 권한 온보딩으로 안내.
+  //  - 단발 타이머 대신 "네비 준비 + 홈 화면일 때"까지 재시도해 놓치지 않게 한다.
+  //  - 알람으로 시작된 콜드스타트(MedicationAlarm)와는 충돌하지 않도록 홈일 때만 이동.
+  //  - permPromptedRef로 세션당 1회만(닫고 "나중에 하기" 해도 재진입 안 함).
+  const permPromptedRef = React.useRef(false);
+  useEffect(() => {
+    if (!isHydrated || !isAuthenticated || role !== "elderly") return;
+    if (permPromptedRef.current) return;
+
+    let cancelled = false;
+
+    const tryPrompt = async (attempt = 0) => {
+      if (cancelled || permPromptedRef.current) return;
+
+      // 네비게이션이 아직 준비 안 됐으면 잠깐 뒤 재시도.
+      if (!navigationRef.isReady()) {
+        if (attempt < 20) setTimeout(() => tryPrompt(attempt + 1), 150);
+        return;
+      }
+      // 알람 등 다른 흐름이 떠 있으면 끼어들지 않고 홈으로 돌아올 때까지 대기.
+      const current = navigationRef.getCurrentRoute()?.name;
+      if (current && current !== "ElderlyHome") {
+        if (attempt < 20) setTimeout(() => tryPrompt(attempt + 1), 300);
+        return;
+      }
+
+      try {
+        if (!(await hasMissingCriticalPermissions())) return; // 다 허용 → 안 띄움
+        if (cancelled || permPromptedRef.current) return;
+        permPromptedRef.current = true;
+        navigationRef.navigate("PermissionSetup");
+      } catch (e) {
+        console.warn("[PERM] onboarding check failed:", e);
+      }
+    };
+
+    // 알람 콜드스타트 라우팅이 먼저 자리잡도록 살짝 양보 후 시작.
+    const t = setTimeout(() => tryPrompt(), 800);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [isHydrated, isAuthenticated, role]);
 
   useMedicationReminderSync();
 
@@ -494,6 +563,11 @@ function AppContent() {
               name="MedicationAlarm"
               component={MedicationAlarmScreen}
               options={{ headerShown: false, gestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="PermissionSetup"
+              component={PermissionSetupScreen}
+              options={{ headerShown: false }}
             />
           </>
         ) : (
