@@ -38,6 +38,10 @@ export default function ElderlySettingsScreen() {
     navigation.navigate("TutorialMedicationHome");
   };
 
+  const handlePermissionSetup = () => {
+    navigation.navigate("PermissionSetup");
+  };
+
   // 로그아웃 — 확인 후 useLogout 실행.
   // 성공 시 인증 상태가 풀려 App.tsx 네비게이터가 자동으로 로그인 화면으로 전환됨.
   const handleLogout = () => {
@@ -123,6 +127,43 @@ export default function ElderlySettingsScreen() {
             </AppText>
             <AppText variant="caption" audience="elderly" color="secondary">
               오늘의 약 확인하고 복용 체크하기를 연습해요
+            </AppText>
+          </View>
+          <Ionicons
+            name="chevron-forward"
+            size={24}
+            color={Colors.text.disabled}
+          />
+        </Pressable>
+
+        {/* ─── 알림 섹션 ─── */}
+        <AppText
+          variant="caption"
+          audience="elderly"
+          color="secondary"
+          style={[styles.sectionTitle, styles.sectionGap]}
+        >
+          알림
+        </AppText>
+
+        <Pressable
+          onPress={handlePermissionSetup}
+          style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+          android_ripple={{ color: Colors.surface.divider }}
+        >
+          <View style={[styles.iconWrap, styles.iconBlue]}>
+            <Ionicons
+              name="notifications-outline"
+              size={28}
+              color={Colors.brand.primary}
+            />
+          </View>
+          <View style={styles.rowText}>
+            <AppText variant="bodyBold" audience="elderly" color="primary">
+              알람 권한 설정
+            </AppText>
+            <AppText variant="caption" audience="elderly" color="secondary">
+              약 알람이 잘 울리도록 권한을 확인해요
             </AppText>
           </View>
           <Ionicons
