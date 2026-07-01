@@ -23,6 +23,7 @@ import {
   getMedicationSchedules,
   getMedicationLogsByDate,
   getMedicationToday,
+  moveMedicationPacketTime,
   takeMedication,
   updateMedicationSchedule,
 } from "../services/medicationService";
@@ -252,6 +253,32 @@ export function useUpdateMedicationSchedule() {
       qc.invalidateQueries({
         queryKey: medicationKeys.scheduleDetail(scheduleId),
       });
+    },
+  });
+}
+
+/**
+ * 봉지 시각 이동(4-3) — (groupId, fromTime)의 모든 성분을 toTime으로 일괄 이동.
+ * 편집에서 "시각만 바뀐 슬롯"에 사용해 요일별 row 잔존 버그를 해소.
+ */
+export function useMoveMedicationPacketTime() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      protegeId,
+      groupId,
+      fromTime,
+      toTime,
+    }: {
+      protegeId: number;
+      groupId: string;
+      fromTime: string;
+      toTime: string;
+    }) => moveMedicationPacketTime(protegeId, groupId, fromTime, toTime),
+
+    onSettled: (_data, _err, { protegeId }) => {
+      qc.invalidateQueries({ queryKey: medicationKeys.scheduleList(protegeId) });
+      qc.invalidateQueries({ queryKey: [...medicationKeys.all, "today"] });
     },
   });
 }

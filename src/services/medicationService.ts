@@ -332,6 +332,25 @@ export async function deleteMedicationSchedule(
   await api.delete(`/api/medications/schedules/${scheduleId}`);
 }
 
+/**
+ * PUT /api/wards/{wardId}/medication-schedules/groups/{groupId}/packets/time (4-3)
+ * 봉지 시각 이동 — (groupId, fromTime)의 모든 성분(요일별 row 포함)을 한 번에 toTime으로.
+ * 한 줄만 옮겨 옛 시간이 잔존하는 버그를 구조적으로 차단.
+ */
+export async function moveMedicationPacketTime(
+  protegeId: number,
+  groupId: string,
+  fromTime: string,
+  toTime: string,
+): Promise<void> {
+  await api.put(
+    `/api/wards/${protegeId}/medication-schedules/groups/${encodeURIComponent(
+      groupId,
+    )}/packets/time`,
+    { fromTime: toBackendTime(fromTime), toTime: toBackendTime(toTime) },
+  );
+}
+
 // ────────────────────────────────────────────
 // API: 복약 기록
 // ────────────────────────────────────────────

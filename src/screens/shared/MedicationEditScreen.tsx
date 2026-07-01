@@ -30,6 +30,7 @@ import {
   useCreateMedicationSchedule,
   useDeleteMedicationSchedule,
   useMedicationSchedules,
+  useMoveMedicationPacketTime,
   useUpdateMedicationSchedule,
 } from "../../hooks/useMedications";
 import {
@@ -76,6 +77,7 @@ export default function MedicationEditScreen() {
   const createMutation = useCreateMedicationSchedule();
   const updateMutation = useUpdateMedicationSchedule();
   const deleteMutation = useDeleteMedicationSchedule();
+  const movePacketMutation = useMoveMedicationPacketTime();
 
   const {
     control,
@@ -169,8 +171,11 @@ export default function MedicationEditScreen() {
             });
           }
 
-          // 2) 시간이 바뀐 슬롯: 기존 행 id 재사용해 "제자리 시간 변경"
-          //    (삭제+생성 X → scheduleId·등록시각 보존 → 복용기록 유지, 카운트 정상)
+          // 2) 시간이 바뀐 슬롯: 4-3 봉지 시각 이동으로 (groupId, fromTime)의
+          //    모든 요일 row를 한 번에 옮긴다. (repId 하나만 옮겨 나머지 요일 row가
+          //    옛 시각에 잔존하던 버그를 구조적으로 해소)
+          //    참고: movePacket은 시각만 이동하고 이름/요일/기간은 유지한다. 이름·요일·기간
+          //    변경은 1)의 update(시간 그대로 슬롯)가 담당하므로 대부분 케이스는 함께 반영된다.
           const leftoverOld = [...existingByTime.entries()]
             .filter(([t]) => !matchedOld.has(t))
             .sort((a, b) => a[0].localeCompare(b[0]));
@@ -178,19 +183,30 @@ export default function MedicationEditScreen() {
             .filter((t) => !matchedNew.has(t))
             .sort((a, b) => a.localeCompare(b));
 
+          const groupId = group.schedules[0]?.groupId;
           const pairCount = Math.min(leftoverOld.length, leftoverNew.length);
           for (let i = 0; i < pairCount; i++) {
-            await updateMutation.mutateAsync({
-              scheduleId: leftoverOld[i][1].repId,
-              input: {
-                medicationName: data.medicationName,
-                scheduledTime: leftoverNew[i],
-                scheduleType: data.scheduleType,
-                daysOfWeek: daysList,
-                active: true,
-                ...period,
-              },
-            });
+            if (groupId) {
+              await movePacketMutation.mutateAsync({
+                protegeId,
+                groupId,
+                fromTime: leftoverOld[i][0],
+                toTime: leftoverNew[i],
+              });
+            } else {
+              // groupId 없는 예외 데이터: 기존 방식(제자리 id 재사용)으로 폴백
+              await updateMutation.mutateAsync({
+                scheduleId: leftoverOld[i][1].repId,
+                input: {
+                  medicationName: data.medicationName,
+                  scheduledTime: leftoverNew[i],
+                  scheduleType: data.scheduleType,
+                  daysOfWeek: daysList,
+                  active: true,
+                  ...period,
+                },
+              });
+            }
           }
 
           // 3) 남는 새 시간 → 신규 생성
@@ -253,6 +269,7 @@ export default function MedicationEditScreen() {
       createMutation,
       updateMutation,
       deleteMutation,
+      movePacketMutation,
       isEdit,
       group,
       protegeId,
@@ -305,7 +322,8 @@ export default function MedicationEditScreen() {
   const submitLoading =
     createMutation.isPending ||
     updateMutation.isPending ||
-    deleteMutation.isPending;
+    deleteMutation.isPending ||
+    movePacketMutation.isPending;
 
   return (
     <View style={styles.root}>
