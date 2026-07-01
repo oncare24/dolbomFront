@@ -27,11 +27,14 @@ import { DayOfWeekPicker } from "../../components/medication/DayOfWeekPicker";
 
 import { useAuthStore } from "../../stores/authStore";
 import {
-  useCreateMedicationSchedule,
-  useDeleteMedicationSchedule,
+  useAddMedicationPacket,
+  useCreateMedicationGroup,
+  useDeleteMedicationGroup,
+  useDeleteMedicationPacket,
   useMedicationSchedules,
   useMoveMedicationPacketTime,
-  useUpdateMedicationSchedule,
+  useRenameMedicationGroup,
+  useUpdateMedicationPacket,
 } from "../../hooks/useMedications";
 import {
   medicationSchema,
@@ -74,10 +77,16 @@ export default function MedicationEditScreen() {
     );
   }, [isEdit, scheduleId, schedules]);
 
-  const createMutation = useCreateMedicationSchedule();
-  const updateMutation = useUpdateMedicationSchedule();
-  const deleteMutation = useDeleteMedicationSchedule();
+  const createGroupMutation = useCreateMedicationGroup();
+  const addPacketMutation = useAddMedicationPacket();
+  const updatePacketMutation = useUpdateMedicationPacket();
+  const deletePacketMutation = useDeleteMedicationPacket();
+  const deleteGroupMutation = useDeleteMedicationGroup();
   const movePacketMutation = useMoveMedicationPacketTime();
+  const renameGroupMutation = useRenameMedicationGroup();
+
+  // AUTO(CODEF 자동) 봉지는 이름 변경·시각 추가 잠금 (시각 이동/삭제/요일·기간만 허용)
+  const isAutoGroup = isEdit && group?.schedules[0]?.source === "AUTO";
 
   const {
     control,
@@ -136,113 +145,115 @@ export default function MedicationEditScreen() {
         const newTimes = [...new Set(data.scheduledTimes)];
 
         if (isEdit && group) {
-          // 시간별 기존 행 매핑 (요일 약은 한 시간에 행이 여러 개)
-          const existingByTime = new Map<
-            string,
-            { repId: number; rowIds: number[] }
-          >();
-          for (const s of group.schedules) {
-            const e = existingByTime.get(s.scheduledTime) ?? {
-              repId: s.id,
-              rowIds: [],
-            };
-            e.rowIds.push(...s.scheduleIds);
-            existingByTime.set(s.scheduledTime, e);
+          const groupId = group.schedules[0]?.groupId;
+          if (!groupId) {
+            toast.show({ message: "봉지 정보를 확인할 수 없어요", variant: "error" });
+            return;
+          }
+          const isAuto = group.schedules[0]?.source === "AUTO";
+
+          // 이름 변경 (MANUAL만) — 바뀐 경우에만 PATCH
+          if (!isAuto && data.medicationName !== group.medicationName) {
+            await renameGroupMutation.mutateAsync({
+              protegeId,
+              groupId,
+              medicationName: data.medicationName,
+            });
           }
 
-          // 1) 시간이 그대로인 슬롯: 제자리 수정 (이름/요일/기간 갱신)
+          const existing = new Set(group.times);
           const matchedNew = new Set<string>();
           const matchedOld = new Set<string>();
+
+          // 1) 시간 그대로인 봉지: 속성(유형/요일/기간) 변경 (4-4)
           for (const t of newTimes) {
-            const ex = existingByTime.get(t);
-            if (!ex) continue;
+            if (!existing.has(t)) continue;
             matchedNew.add(t);
             matchedOld.add(t);
-            await updateMutation.mutateAsync({
-              scheduleId: ex.repId,
+            await updatePacketMutation.mutateAsync({
+              protegeId,
+              groupId,
+              scheduledTime: t,
               input: {
-                medicationName: data.medicationName,
-                scheduledTime: t,
                 scheduleType: data.scheduleType,
                 daysOfWeek: daysList,
-                active: true,
                 ...period,
               },
             });
           }
 
-          // 2) 시간이 바뀐 슬롯: 4-3 봉지 시각 이동으로 (groupId, fromTime)의
-          //    모든 요일 row를 한 번에 옮긴다. (repId 하나만 옮겨 나머지 요일 row가
-          //    옛 시각에 잔존하던 버그를 구조적으로 해소)
-          //    참고: movePacket은 시각만 이동하고 이름/요일/기간은 유지한다. 이름·요일·기간
-          //    변경은 1)의 update(시간 그대로 슬롯)가 담당하므로 대부분 케이스는 함께 반영된다.
-          const leftoverOld = [...existingByTime.entries()]
-            .filter(([t]) => !matchedOld.has(t))
-            .sort((a, b) => a[0].localeCompare(b[0]));
+          // 2) 시간이 바뀐 봉지: 4-3 시각 이동(모든 요일 row 일괄) 후 속성 반영
+          const leftoverOld = group.times
+            .filter((t) => !matchedOld.has(t))
+            .sort((a, b) => a.localeCompare(b));
           const leftoverNew = newTimes
             .filter((t) => !matchedNew.has(t))
             .sort((a, b) => a.localeCompare(b));
-
-          const groupId = group.schedules[0]?.groupId;
           const pairCount = Math.min(leftoverOld.length, leftoverNew.length);
           for (let i = 0; i < pairCount; i++) {
-            if (groupId) {
-              await movePacketMutation.mutateAsync({
-                protegeId,
-                groupId,
-                fromTime: leftoverOld[i][0],
-                toTime: leftoverNew[i],
-              });
-            } else {
-              // groupId 없는 예외 데이터: 기존 방식(제자리 id 재사용)으로 폴백
-              await updateMutation.mutateAsync({
-                scheduleId: leftoverOld[i][1].repId,
-                input: {
-                  medicationName: data.medicationName,
-                  scheduledTime: leftoverNew[i],
-                  scheduleType: data.scheduleType,
-                  daysOfWeek: daysList,
-                  active: true,
-                  ...period,
-                },
-              });
-            }
-          }
-
-          // 3) 남는 새 시간 → 신규 생성
-          for (let i = pairCount; i < leftoverNew.length; i++) {
-            await createMutation.mutateAsync({
+            await movePacketMutation.mutateAsync({
               protegeId,
-              medicationName: data.medicationName,
+              groupId,
+              fromTime: leftoverOld[i],
+              toTime: leftoverNew[i],
+            });
+            await updatePacketMutation.mutateAsync({
+              protegeId,
+              groupId,
               scheduledTime: leftoverNew[i],
-              scheduleType: data.scheduleType,
-              daysOfWeek: daysList,
-              ...period,
+              input: {
+                scheduleType: data.scheduleType,
+                daysOfWeek: daysList,
+                ...period,
+              },
             });
           }
 
-          // 4) 남는 기존 시간 → 삭제
-          for (let i = pairCount; i < leftoverOld.length; i++) {
-            for (const rowId of leftoverOld[i][1].rowIds) {
-              await deleteMutation.mutateAsync({
-                scheduleId: rowId,
-                protegeId,
+          // 3) 남는 새 시간 → 봉지에 시각 추가 (MANUAL만)
+          for (let i = pairCount; i < leftoverNew.length; i++) {
+            if (isAuto) {
+              toast.show({
+                message: "자동 등록된 약은 시간을 추가할 수 없어요",
+                variant: "info",
               });
+              continue;
             }
+            await addPacketMutation.mutateAsync({
+              protegeId,
+              groupId,
+              input: {
+                scheduledTime: leftoverNew[i],
+                scheduleType: data.scheduleType,
+                daysOfWeek: daysList,
+                ...period,
+              },
+            });
+          }
+
+          // 4) 남는 기존 시간 → 봉지(시각) 삭제
+          for (let i = pairCount; i < leftoverOld.length; i++) {
+            await deletePacketMutation.mutateAsync({
+              protegeId,
+              groupId,
+              scheduledTime: leftoverOld[i],
+            });
           }
 
           toast.show({ message: "약을 수정했어요", variant: "success" });
         } else {
-          for (const t of newTimes) {
-            await createMutation.mutateAsync({
-              protegeId,
+          // 신규 등록 → 봉지 생성 (4-5)
+          await createGroupMutation.mutateAsync({
+            protegeId,
+            input: {
               medicationName: data.medicationName,
-              scheduledTime: t,
-              scheduleType: data.scheduleType,
-              daysOfWeek: daysList,
-              ...period,
-            });
-          }
+              packets: newTimes.map((t) => ({
+                scheduledTime: t,
+                scheduleType: data.scheduleType,
+                daysOfWeek: daysList,
+                ...period,
+              })),
+            },
+          });
           toast.show({ message: "약을 추가했어요", variant: "success" });
         }
         navigation.goBack();
@@ -266,10 +277,12 @@ export default function MedicationEditScreen() {
       }
     },
     [
-      createMutation,
-      updateMutation,
-      deleteMutation,
+      createGroupMutation,
+      addPacketMutation,
+      updatePacketMutation,
+      deletePacketMutation,
       movePacketMutation,
+      renameGroupMutation,
       isEdit,
       group,
       protegeId,
@@ -281,6 +294,7 @@ export default function MedicationEditScreen() {
   const handleDelete = useCallback(() => {
     if (!isEdit || !group) return;
     const medName = group.medicationName;
+    const groupId = group.schedules[0]?.groupId;
 
     Alert.alert("약 삭제", `${medName}을(를) 삭제할까요?`, [
       { text: "취소", style: "cancel" },
@@ -288,12 +302,12 @@ export default function MedicationEditScreen() {
         text: "삭제",
         style: "destructive",
         onPress: async () => {
+          if (!groupId) {
+            toast.show({ message: "봉지 정보를 확인할 수 없어요", variant: "error" });
+            return;
+          }
           try {
-            for (const s of group.schedules) {
-              for (const id of s.scheduleIds) {
-                await deleteMutation.mutateAsync({ scheduleId: id, protegeId });
-              }
-            }
+            await deleteGroupMutation.mutateAsync({ protegeId, groupId });
             toast.show({ message: "약을 삭제했어요", variant: "success" });
             navigation.goBack();
           } catch (e) {
@@ -315,15 +329,17 @@ export default function MedicationEditScreen() {
         },
       },
     ]);
-  }, [isEdit, group, protegeId, deleteMutation, toast, navigation]);
+  }, [isEdit, group, protegeId, deleteGroupMutation, toast, navigation]);
 
   const headerTitle = isEdit ? "약 수정" : "약 추가";
   const submitLabel = isEdit ? "수정 완료" : "저장";
   const submitLoading =
-    createMutation.isPending ||
-    updateMutation.isPending ||
-    deleteMutation.isPending ||
-    movePacketMutation.isPending;
+    createGroupMutation.isPending ||
+    addPacketMutation.isPending ||
+    updatePacketMutation.isPending ||
+    deletePacketMutation.isPending ||
+    movePacketMutation.isPending ||
+    renameGroupMutation.isPending;
 
   return (
     <View style={styles.root}>
@@ -364,9 +380,20 @@ export default function MedicationEditScreen() {
                 maxLength={100}
                 error={errors.medicationName?.message}
                 audience={audience}
+                editable={!isAutoGroup}
               />
             )}
           />
+          {isAutoGroup && (
+            <AppText
+              variant="caption"
+              audience={audience}
+              color="secondary"
+              style={styles.autoNotice}
+            >
+              자동 등록된 처방이라 이름은 바꿀 수 없어요
+            </AppText>
+          )}
         </View>
 
         <View style={styles.card}>
@@ -488,7 +515,7 @@ export default function MedicationEditScreen() {
             <DangerButton
               label="약 삭제"
               onPress={handleDelete}
-              loading={deleteMutation.isPending}
+              loading={deleteGroupMutation.isPending}
               audience={audience}
             />
           </View>
@@ -537,6 +564,9 @@ const styles = StyleSheet.create({
   },
   subLabel: {
     marginBottom: Spacing.sm,
+  },
+  autoNotice: {
+    marginTop: Spacing.sm,
   },
   deleteSection: {
     marginTop: Spacing.lg,

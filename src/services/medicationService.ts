@@ -351,6 +351,140 @@ export async function moveMedicationPacketTime(
   );
 }
 
+/**
+ * POST /api/wards/{wardId}/medication-schedules/groups/{groupId}/packets (봉지에 시각 추가)
+ * MANUAL 봉지만. 약명은 서버가 봉지의 기존 약명을 상속한다.
+ */
+export async function addMedicationPacket(
+  protegeId: number,
+  groupId: string,
+  input: {
+    scheduledTime: string;
+    scheduleType: MedicationScheduleType;
+    daysOfWeek: DayOfWeek[];
+    startDate?: string | null;
+    endDate?: string | null;
+  },
+): Promise<void> {
+  await api.post(
+    `/api/wards/${protegeId}/medication-schedules/groups/${encodeURIComponent(
+      groupId,
+    )}/packets`,
+    {
+      scheduledTime: toBackendTime(input.scheduledTime),
+      scheduleType: input.scheduleType,
+      daysOfWeek: input.scheduleType === "WEEKLY" ? input.daysOfWeek : [],
+      startDate: input.startDate ?? null,
+      endDate: input.endDate ?? null,
+    },
+  );
+}
+
+/**
+ * PUT /api/wards/{wardId}/medication-schedules/groups/{groupId}/packets/{scheduledTime} (4-4)
+ * 봉지 속성(유형/요일/기간) 변경.
+ */
+export async function updateMedicationPacket(
+  protegeId: number,
+  groupId: string,
+  scheduledTime: string,
+  input: {
+    scheduleType: MedicationScheduleType;
+    daysOfWeek: DayOfWeek[];
+    startDate?: string | null;
+    endDate?: string | null;
+  },
+): Promise<void> {
+  await api.put(
+    `/api/wards/${protegeId}/medication-schedules/groups/${encodeURIComponent(
+      groupId,
+    )}/packets/${encodeURIComponent(toBackendTime(scheduledTime))}`,
+    {
+      scheduleType: input.scheduleType,
+      daysOfWeek: input.scheduleType === "WEEKLY" ? input.daysOfWeek : [],
+      startDate: input.startDate ?? null,
+      endDate: input.endDate ?? null,
+    },
+  );
+}
+
+/**
+ * DELETE /api/wards/{wardId}/medication-schedules/groups/{groupId} (4-6)
+ * 봉지(약/처방) 통째 삭제.
+ */
+export async function deleteMedicationGroup(
+  protegeId: number,
+  groupId: string,
+): Promise<void> {
+  await api.delete(
+    `/api/wards/${protegeId}/medication-schedules/groups/${encodeURIComponent(
+      groupId,
+    )}`,
+  );
+}
+
+/**
+ * DELETE /api/wards/{wardId}/medication-schedules/groups/{groupId}/packets/{scheduledTime} (4-6)
+ * 특정 봉지(시각)만 삭제.
+ */
+export async function deleteMedicationPacket(
+  protegeId: number,
+  groupId: string,
+  scheduledTime: string,
+): Promise<void> {
+  await api.delete(
+    `/api/wards/${protegeId}/medication-schedules/groups/${encodeURIComponent(
+      groupId,
+    )}/packets/${encodeURIComponent(toBackendTime(scheduledTime))}`,
+  );
+}
+
+/**
+ * POST /api/wards/{wardId}/medication-schedules/groups (4-5, 수동 봉지 생성)
+ * 약 1개 = 봉지 1개. packets의 시각마다 일정 생성.
+ */
+export async function createMedicationGroup(
+  protegeId: number,
+  input: {
+    medicationName: string;
+    packets: {
+      scheduledTime: string;
+      scheduleType: MedicationScheduleType;
+      daysOfWeek: DayOfWeek[];
+      startDate?: string | null;
+      endDate?: string | null;
+    }[];
+  },
+): Promise<void> {
+  await api.post(`/api/wards/${protegeId}/medication-schedules/groups`, {
+    medicationName: input.medicationName,
+    packets: input.packets.map((p) => ({
+      scheduledTime: toBackendTime(p.scheduledTime),
+      scheduleType: p.scheduleType,
+      daysOfWeek: p.scheduleType === "WEEKLY" ? p.daysOfWeek : [],
+      startDate: p.startDate ?? null,
+      endDate: p.endDate ?? null,
+    })),
+  });
+}
+
+/**
+ * PATCH /api/wards/{wardId}/medication-schedules/groups/{groupId} (봉지 이름 변경)
+ * MANUAL 봉지만.
+ */
+export async function renameMedicationGroup(
+  protegeId: number,
+  groupId: string,
+  medicationName: string,
+): Promise<void> {
+  await api.patch(
+    `/api/wards/${protegeId}/medication-schedules/groups/${encodeURIComponent(
+      groupId,
+    )}`,
+    { medicationName },
+  );
+}
+
 // ────────────────────────────────────────────
 // API: 복약 기록
 // ────────────────────────────────────────────
