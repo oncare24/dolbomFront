@@ -16,7 +16,9 @@ import type {
   MedicationLogSource,
   MedicationSchedule,
   MedicationScheduleType,
+  MedicationSource,
   TakeMedicationInput,
+  TodayMedicationSlot,
   UpdateMedicationScheduleInput,
 } from "../types/medication";
 
@@ -68,21 +70,33 @@ interface MedicationLogResponseRaw {
   createdAt: string;
 }
 
-// source API 응답 — encrypted_activity_log 복호화 결과.
-// 일반 GET 응답과 달리 wardId가 path param에 있어 본문에는 없음.
-interface MedicationScheduleSourceResponseRaw {
-  scheduleId: number;
-  medicationName: string;
-  scheduledTime: string;
-  allowedEarlyMinutes: number;
-  allowedDelayMinutes: number;
+// 봉지(DoseGroup) 계층 응답 — GET .../medication-schedules/source (4-1).
+// 암호화 원천을 복호화해 groupId→봉지(시각)→성분 계층으로 반환한다.
+interface MedicationGroupListRaw {
+  groups: MedicationGroupRaw[];
+}
+
+interface MedicationGroupRaw {
+  groupId: string;
+  source: MedicationSource;
+  medicationName: string | null; // AUTO는 null, MANUAL은 약명
+  packets: MedicationPacketRaw[];
+}
+
+interface MedicationPacketRaw {
+  scheduledTime: string; // "HH:mm:ss"
+  label: string | null;
   scheduleType: MedicationScheduleType;
-  dayOfWeek: DayOfWeek | null;
   daysOfWeek: DayOfWeek[];
+  startDate: string | null;
+  endDate: string | null;
   active: boolean;
-  lastChangedAt: string;
-  startDate: string | null; // 추가
-  endDate: string | null; // 추가
+  items: MedicationItemRaw[];
+}
+
+interface MedicationItemRaw {
+  scheduleId: number;
+  name: string;
 }
 
 function toFrontSchedule(
@@ -101,23 +115,39 @@ function toFrontSchedule(
   };
 }
 
-function toFrontScheduleFromSource(
-  raw: MedicationScheduleSourceResponseRaw,
+/**
+ * 봉지 계층 응답 → 평면 MedicationSchedule[]로 펼침.
+ * 각 (group, packet, item)이 한 row. groupId/source를 부착한다.
+ * 이후 groupSchedules()로 다시 묶으면 기존 UI 모델(요일 union)이 그대로 복원된다.
+ */
+function flattenGroups(
+  raw: MedicationGroupListRaw,
   protegeId: number,
-): MedicationSchedule {
-  return {
-    id: raw.scheduleId,
-    scheduleIds: [raw.scheduleId],
-    protegeId,
-    medicationName: raw.medicationName,
-    scheduledTime: toFrontTime(raw.scheduledTime),
-    scheduleType: raw.scheduleType,
-    daysOfWeek: raw.scheduleType === "DAILY" ? [] : raw.daysOfWeek ?? [],
-    active: raw.active,
-    createdAt: raw.lastChangedAt,
-    startDate: raw.startDate ?? null, // 추가
-    endDate: raw.endDate ?? null, // 추가
-  };
+): MedicationSchedule[] {
+  const flat: MedicationSchedule[] = [];
+  for (const group of raw.groups ?? []) {
+    for (const packet of group.packets ?? []) {
+      for (const item of packet.items ?? []) {
+        flat.push({
+          id: item.scheduleId,
+          scheduleIds: [item.scheduleId],
+          protegeId,
+          medicationName: item.name,
+          scheduledTime: toFrontTime(packet.scheduledTime),
+          scheduleType: packet.scheduleType,
+          daysOfWeek:
+            packet.scheduleType === "DAILY" ? [] : packet.daysOfWeek ?? [],
+          active: packet.active,
+          createdAt: packet.startDate ?? "",
+          startDate: packet.startDate ?? null,
+          endDate: packet.endDate ?? null,
+          groupId: group.groupId,
+          source: group.source,
+        });
+      }
+    }
+  }
+  return flat;
 }
 
 function toFrontLog(raw: MedicationLogResponseRaw): MedicationLog {
@@ -184,11 +214,50 @@ function groupSchedules(schedules: MedicationSchedule[]): MedicationSchedule[] {
 export async function getMedicationSchedules(
   protegeId: number,
 ): Promise<MedicationSchedule[]> {
-  const res = await api.get<MedicationScheduleSourceResponseRaw[]>(
+  const res = await api.get<MedicationGroupListRaw>(
     `/api/wards/${protegeId}/medication-schedules/source`,
   );
-  const flat = res.data.map((raw) => toFrontScheduleFromSource(raw, protegeId));
+  const flat = flattenGroups(res.data, protegeId);
   return groupSchedules(flat);
+}
+
+// 오늘의 약(4-2) 응답
+interface TodayMedicationSlotRaw {
+  scheduledTime: string; // "HH:mm:ss"
+  label: string | null;
+  allTaken: boolean;
+  items: {
+    scheduleId: number;
+    name: string;
+    taken: boolean;
+    takenAt: string | null;
+  }[];
+}
+
+interface TodayMedicationRaw {
+  slots: TodayMedicationSlotRaw[];
+}
+
+/** GET /api/wards/{wardId}/medication-schedules/today?date=YYYY-MM-DD (4-2) */
+export async function getMedicationToday(
+  protegeId: number,
+  date: string,
+): Promise<TodayMedicationSlot[]> {
+  const res = await api.get<TodayMedicationRaw>(
+    `/api/wards/${protegeId}/medication-schedules/today`,
+    { params: { date } },
+  );
+  return (res.data.slots ?? []).map((slot) => ({
+    scheduledTime: toFrontTime(slot.scheduledTime),
+    label: slot.label,
+    allTaken: slot.allTaken,
+    items: (slot.items ?? []).map((it) => ({
+      scheduleId: it.scheduleId,
+      name: it.name,
+      taken: it.taken,
+      takenAt: it.takenAt,
+    })),
+  }));
 }
 
 /** GET /api/medications/schedules/{scheduleId} */
