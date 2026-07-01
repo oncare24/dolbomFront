@@ -22,6 +22,8 @@ import {
   getMedicationSchedule,
   getMedicationSchedules,
   getMedicationLogsByDate,
+  getMedicationToday,
+  moveMedicationPacketTime,
   takeMedication,
   updateMedicationSchedule,
 } from "../services/medicationService";
@@ -30,6 +32,7 @@ import type {
   MedicationLog,
   MedicationSchedule,
   TakeMedicationInput,
+  TodayMedicationSlot,
   UpdateMedicationScheduleInput,
 } from "../types/medication";
 
@@ -65,6 +68,8 @@ export const medicationKeys = {
   logs: () => [...medicationKeys.all, "logs"] as const,
   logsByDate: (protegeId: number, date: string) =>
     [...medicationKeys.logs(), "byDate", protegeId, date] as const,
+  today: (protegeId: number, date: string) =>
+    [...medicationKeys.all, "today", protegeId, date] as const,
 };
 
 // ────────────────────────────────────────────
@@ -98,6 +103,19 @@ export function useMedicationLogsByDate(
   return useQuery({
     queryKey: medicationKeys.logsByDate(protegeId, date),
     queryFn: () => getMedicationLogsByDate(protegeId, date),
+    ...options,
+  });
+}
+
+/** 오늘의 약(4-2) — 시각 슬롯 + 성분별 복용 상태. 서버가 요일/기간/회차 필터링. */
+export function useMedicationToday(
+  protegeId: number,
+  date: string,
+  options?: Omit<UseQueryOptions<TodayMedicationSlot[]>, "queryKey" | "queryFn">,
+) {
+  return useQuery({
+    queryKey: medicationKeys.today(protegeId, date),
+    queryFn: () => getMedicationToday(protegeId, date),
     ...options,
   });
 }
@@ -239,6 +257,32 @@ export function useUpdateMedicationSchedule() {
   });
 }
 
+/**
+ * 봉지 시각 이동(4-3) — (groupId, fromTime)의 모든 성분을 toTime으로 일괄 이동.
+ * 편집에서 "시각만 바뀐 슬롯"에 사용해 요일별 row 잔존 버그를 해소.
+ */
+export function useMoveMedicationPacketTime() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      protegeId,
+      groupId,
+      fromTime,
+      toTime,
+    }: {
+      protegeId: number;
+      groupId: string;
+      fromTime: string;
+      toTime: string;
+    }) => moveMedicationPacketTime(protegeId, groupId, fromTime, toTime),
+
+    onSettled: (_data, _err, { protegeId }) => {
+      qc.invalidateQueries({ queryKey: medicationKeys.scheduleList(protegeId) });
+      qc.invalidateQueries({ queryKey: [...medicationKeys.all, "today"] });
+    },
+  });
+}
+
 /** 일정 삭제 — Optimistic: 목록에서 즉시 제거. */
 export function useDeleteMedicationSchedule() {
   const qc = useQueryClient();
@@ -278,11 +322,15 @@ export function useTakeMedication() {
 
     onMutate: async (input) => {
       const date = input.takenAt.slice(0, 10);
-      const key = medicationKeys.logsByDate(input.protegeId, date);
+      const logKey = medicationKeys.logsByDate(input.protegeId, date);
+      const todayKey = medicationKeys.today(input.protegeId, date);
 
-      await qc.cancelQueries({ queryKey: key });
-      const previous = qc.getQueryData<MedicationLog[]>(key);
+      await qc.cancelQueries({ queryKey: logKey });
+      await qc.cancelQueries({ queryKey: todayKey });
+      const previousLogs = qc.getQueryData<MedicationLog[]>(logKey);
+      const previousToday = qc.getQueryData<TodayMedicationSlot[]>(todayKey);
 
+      // 로그 캐시 optimistic (다른 화면·요약용)
       const optimistic: MedicationLog = {
         id: -Date.now(),
         protegeId: input.protegeId,
@@ -291,19 +339,43 @@ export function useTakeMedication() {
         takenAt: input.takenAt,
         logSource: input.logSource,
       };
-      qc.setQueryData<MedicationLog[]>(key, (old = []) => [...old, optimistic]);
+      qc.setQueryData<MedicationLog[]>(logKey, (old = []) => [
+        ...old,
+        optimistic,
+      ]);
 
-      return { previous, key };
+      // 오늘의 약 캐시 optimistic — 해당 scheduleId 성분을 즉시 복용 표시
+      if (previousToday && input.scheduleId != null) {
+        qc.setQueryData<TodayMedicationSlot[]>(
+          todayKey,
+          previousToday.map((slot) => {
+            const items = slot.items.map((it) =>
+              it.scheduleId === input.scheduleId
+                ? { ...it, taken: true, takenAt: input.takenAt }
+                : it,
+            );
+            return { ...slot, items, allTaken: items.every((i) => i.taken) };
+          }),
+        );
+      }
+
+      return { previousLogs, logKey, previousToday, todayKey };
     },
 
     onError: (_err, _input, context) => {
-      if (context) qc.setQueryData(context.key, context.previous);
+      if (context) {
+        qc.setQueryData(context.logKey, context.previousLogs);
+        qc.setQueryData(context.todayKey, context.previousToday);
+      }
     },
 
     onSettled: (_log, _err, input) => {
       const date = input.takenAt.slice(0, 10);
       qc.invalidateQueries({
         queryKey: medicationKeys.logsByDate(input.protegeId, date),
+      });
+      qc.invalidateQueries({
+        queryKey: medicationKeys.today(input.protegeId, date),
       });
     },
   });

@@ -14,6 +14,9 @@ export type MedicationScheduleType = "DAILY" | "WEEKLY";
 
 export type MedicationLogSource = "USER_INPUT" | "GUARDIAN_INPUT" | "SYSTEM";
 
+/** 봉지(DoseGroup) 출처. AUTO=CODEF 자동등록, MANUAL=수동. */
+export type MedicationSource = "AUTO" | "MANUAL";
+
 export type DayOfWeek =
   | "MONDAY"
   | "TUESDAY"
@@ -39,6 +42,28 @@ export interface MedicationSchedule {
   createdAt: string;
   startDate?: string | null; // "YYYY-MM-DD" — 기간 약만, 없으면 null
   endDate?: string | null; // "YYYY-MM-DD" — 기간 약만, 없으면 null
+  /** 봉지(DoseGroup) 식별자. 봉지 API로 조회한 경우 존재. */
+  groupId?: string;
+  /** 봉지 출처(AUTO/MANUAL). 봉지 API로 조회한 경우 존재. */
+  source?: MedicationSource;
+}
+
+/** 오늘의 약 — 성분(scheduleId)별 복용 상태 (4-2 today). */
+export interface TodayMedicationItem {
+  scheduleId: number;
+  name: string;
+  taken: boolean;
+  /** ISO datetime. 미복용이면 null. */
+  takenAt: string | null;
+}
+
+/** 오늘의 약 — 시각(슬롯) 단위 (4-2 today). */
+export interface TodayMedicationSlot {
+  /** "HH:mm" */
+  scheduledTime: string;
+  label: string | null;
+  allTaken: boolean;
+  items: TodayMedicationItem[];
 }
 
 /** 복약 기록 (프론트). */
