@@ -35,6 +35,8 @@ import {
   todayDateString,
 } from "../../utils/medicationSummary";
 import { Colors, Radius, Spacing, Touch } from "../../theme";
+import { toKoreanTime } from "../../utils/medicationFormat";
+import { timeSlotLabel } from "../../utils/mealLabel";
 import { haptic } from "../../utils/haptics";
 import type { DayOfWeek, MedicationSchedule } from "../../types/medication";
 import type { RootStackParamList } from "../../types/navigation";
@@ -264,6 +266,12 @@ export default function MedicationTodayScreen() {
               totalCount={totalSlots}
               takenCount={takenSlots}
               allDone={allDone}
+              nextLabel={(() => {
+                const next = slots.find((s) => s.isNext && !s.isTaken);
+                return next
+                  ? `${timeSlotLabel(next.time)} ${toKoreanTime(next.time)}`
+                  : null;
+              })()}
             />
             <View style={styles.list}>
               {slots.map((slot) => (

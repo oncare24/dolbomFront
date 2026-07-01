@@ -71,8 +71,8 @@ export default function ElderlyHomeScreen() {
       takenCount: summary.takenCount,
       nextTime: summary.nextTime,
       nextLabel:
-        (summary.nextTime ? getMealLabel(summary.nextTime) : null) ??
-        summary.nextMedicationName,
+        summary.nextMedicationName ??
+        (summary.nextTime ? getMealLabel(summary.nextTime) : null),
       nextIsOverdue: summary.nextIsOverdue,
     };
   }, [schedulesQuery.data, logsQuery.data]);

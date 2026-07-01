@@ -13,12 +13,15 @@ interface Props {
   totalCount: number;
   takenCount: number;
   allDone: boolean;
+  /** 다음 복용 안내 (예: "점심 오후 1:00"). 없으면 표시 안 함. */
+  nextLabel?: string | null;
 }
 
 export function MedicationProgressCard({
   totalCount,
   takenCount,
   allDone,
+  nextLabel,
 }: Props) {
   const progress = totalCount > 0 ? takenCount / totalCount : 0;
 
@@ -54,6 +57,18 @@ export function MedicationProgressCard({
         <View style={[styles.fill, { flex: progress }]} />
         <View style={{ flex: 1 - progress }} />
       </View>
+      {nextLabel && (
+        <View style={styles.nextRow}>
+          <Ionicons
+            name="alarm-outline"
+            size={20}
+            color={Colors.brand.primary}
+          />
+          <AppText variant="body" color="primary" style={styles.nextText}>
+            다음 약 <AppText variant="bodyBold" color="link">{nextLabel}</AppText>
+          </AppText>
+        </View>
+      )}
     </View>
   );
 }
@@ -85,5 +100,14 @@ const styles = StyleSheet.create({
   },
   fill: {
     backgroundColor: Colors.brand.primary,
+  },
+  nextRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+    marginTop: Spacing.md,
+  },
+  nextText: {
+    flex: 1,
   },
 });

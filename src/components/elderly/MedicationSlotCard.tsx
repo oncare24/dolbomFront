@@ -2,7 +2,7 @@
 
 // 오늘의 약 — 한 시각(회차) 카드.
 // 그 시각에 먹을 약을 모두 묶어 보여주고, 체크를 누르면 그 시각 약 전부 복용 표시.
-// MedicationItemCard와 같은 스타일(96dp 체크, 다음 바, 완료 fade) 사용.
+// 약마다 고정 색 점으로 구분(텍스트만으론 약이 다 똑같아 보이는 문제 보완).
 
 import React, { useEffect } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
@@ -17,16 +17,8 @@ import Animated, {
 import { AppText } from "../common/Text";
 import { Colors, Elevation, Radius, Spacing } from "../../theme";
 import { toKoreanTime } from "../../utils/medicationFormat";
-import { getMealLabel } from "../../utils/mealLabel";
+import { medicationColor } from "../../utils/medicationColor";
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-function slotLabel(time: string): string {
-  const hour = parseInt(time.split(":")[0], 10);
-  if (hour < 11) return "아침";
-  if (hour < 17) return "점심";
-  if (hour < 21) return "저녁";
-  return "밤";
-}
 
 interface Props {
   time: string;
@@ -45,7 +37,6 @@ export function MedicationSlotCard({
 }: Props) {
   const showNext = isNext && !isTaken;
   const namesText = medicationNames.join(" · ");
-  const slotDisplay = getMealLabel(time) ?? namesText;
   const a11yLabel = [
     `${toKoreanTime(time)}`,
     namesText,
@@ -73,14 +64,27 @@ export function MedicationSlotCard({
           <AppText variant="h3" color="primary">
             {toKoreanTime(time)}
           </AppText>
-          <AppText
-            variant="body"
-            color="secondary"
-            style={styles.medName}
-            numberOfLines={3}
-          >
-            {slotDisplay}
-          </AppText>
+
+          <View style={styles.chips}>
+            {medicationNames.map((name, i) => (
+              <View key={`${name}-${i}`} style={styles.chip}>
+                <View
+                  style={[
+                    styles.dot,
+                    { backgroundColor: medicationColor(name) },
+                  ]}
+                />
+                <AppText
+                  variant="body"
+                  color="primary"
+                  numberOfLines={1}
+                  style={styles.chipText}
+                >
+                  {name}
+                </AppText>
+              </View>
+            ))}
+          </View>
         </View>
         <CheckButton isTaken={isTaken} onPress={onPress} />
       </View>
@@ -180,8 +184,22 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 2,
   },
-  medName: {
-    marginTop: 2,
+  chips: {
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.xs,
+  },
+  dot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+  },
+  chipText: {
+    flex: 1,
   },
   check: {
     width: 96,
