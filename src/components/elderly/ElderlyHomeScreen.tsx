@@ -31,9 +31,7 @@ import type { MedicationStatus } from "../../types/elderlyHome";
 import type { RootStackParamList } from "../../types/navigation";
 import { FloatingSosButton } from "../../components/elderly/FloatingSosButton";
 
-import { HomeMedicationAnalysisCard } from "../../components/elderly/HomeMedicationAnalysisCard";
 import { useMyGuardians } from "../../hooks/useMyGuardians";
-import { useSelfMedicationAnalysis } from "../../hooks/useDrugSafety";
 import { getMealLabel } from "../../utils/mealLabel";
 type Nav = NativeStackNavigationProp<RootStackParamList, "ElderlyHome">;
 
@@ -48,7 +46,6 @@ export default function ElderlyHomeScreen() {
   const enabled = isElder && userId > 0;
 
   const myGuardiansQuery = useMyGuardians(isElder);
-  const medicationAnalysisQuery = useSelfMedicationAnalysis();
   const hasGuardian = (myGuardiansQuery.data?.length ?? 0) > 0;
   useBackgroundLocation(isElder && hasGuardian);
   useFcmTokenRegistration(isElder);
@@ -96,10 +93,6 @@ export default function ElderlyHomeScreen() {
       navigation.navigate("Sos");
       return;
     }
-    if (action === "hospital") {
-      navigation.navigate("MedicalChat");
-      return;
-    }
     if (action === "medication") {
       navigation.navigate("MedicationList", { protegeId: userId });
       return;
@@ -107,7 +100,6 @@ export default function ElderlyHomeScreen() {
 
     const labels: Record<ElderlyHomeAction, string> = {
       sos: "긴급 호출",
-      hospital: "병원 찾기",
       medication: "복약 일정",
     };
     toast.show({
@@ -120,13 +112,6 @@ export default function ElderlyHomeScreen() {
   };
 
   const handleMedicationDetail = () => navigation.navigate("MedicationToday");
-  const handleMedicationAnalysis = () => {
-    if (medicationAnalysisQuery.data) {
-      navigation.navigate("MedicationAnalysisResult");
-    } else {
-      navigation.navigate("MedicationAnalysisIntro");
-    }
-  };
   const handleInvitationsPress = () => {
     navigation.navigate("ReceivedInvitations");
   };
@@ -165,15 +150,11 @@ export default function ElderlyHomeScreen() {
             <HomeActionGrid onActionPress={handleAction} />
           </View>
 
-          <View style={styles.section}>
+          <View style={styles.lastSection}>
             <MedicationStatusCard
               status={medicationStatus}
               onPress={handleMedicationDetail}
             />
-          </View>
-
-          <View style={styles.lastSection}>
-            <HomeMedicationAnalysisCard onPress={handleMedicationAnalysis} />
           </View>
         </ScreenContainer>
         <FloatingSosButton />
