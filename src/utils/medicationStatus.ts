@@ -44,6 +44,18 @@ export function getMedicationTodayStatus(
       return { kind: "NOT_TODAY" };
     }
   }
+
+  // 1.5 복용 기간(시작/종료일) 밖이면 오늘 대상 아님 (기간 지난 약이 MISSED로 잡히는 것 방지)
+  const yyyy = now.getFullYear();
+  const mo = String(now.getMonth() + 1).padStart(2, "0");
+  const da = String(now.getDate()).padStart(2, "0");
+  const todayYmd = `${yyyy}-${mo}-${da}`;
+  if (schedule.startDate && todayYmd < schedule.startDate) {
+    return { kind: "NOT_TODAY" };
+  }
+  if (schedule.endDate && todayYmd > schedule.endDate) {
+    return { kind: "NOT_TODAY" };
+  }
   // 2. 오늘 이 스케줄로 찍힌 로그가 있으면 TAKEN
   const log = todayLogs.find((l) => l.scheduleId === schedule.id);
   if (log) {

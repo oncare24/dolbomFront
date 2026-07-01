@@ -125,7 +125,7 @@ export default function ProtegeDetailScreen() {
   };
 
   const handleMedication = () => {
-    navigation.navigate("MedicationList", { protegeId });
+    navigation.navigate("GuardianMedicationOverview", { protegeId });
   };
 
   const handleMedicationAnalysis = () => {

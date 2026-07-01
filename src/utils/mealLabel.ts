@@ -9,3 +9,15 @@ export function getMealLabel(time: string): string | null {
   if (hour === 22) return "밤약";
   return null;
 }
+
+// 시각 → 시간대 라벨(화면 슬롯 제목용). 식사 시간 구간만 식사명, 그 외는 오후/밤.
+// getMealLabel(정확한 봉지 시각)과 달리 모든 시각을 합리적 구간으로 분류.
+//   5~10 아침 · 11~13 점심 · 14~16 오후 · 17~20 저녁 · 그 외(21~4) 밤
+export function timeSlotLabel(time: string): string {
+  const hour = parseInt(time, 10);
+  if (hour >= 5 && hour <= 10) return "아침";
+  if (hour >= 11 && hour <= 13) return "점심";
+  if (hour >= 14 && hour <= 16) return "오후";
+  if (hour >= 17 && hour <= 20) return "저녁";
+  return "밤";
+}

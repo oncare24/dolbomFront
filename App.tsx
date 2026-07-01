@@ -31,6 +31,7 @@ import SignupScreen from "./src/screens/auth/SignupScreen";
 import ElderlyHomeScreen from "./src/components/elderly/ElderlyHomeScreen";
 import GuardianHomeScreen from "./src/components/guardian/GuardianHomeScreen";
 import ProtegeDetailScreen from "./src/screens/guardian/ProtegeDetailScreen";
+import GuardianMedicationOverviewScreen from "./src/screens/guardian/GuardianMedicationOverviewScreen";
 import AnomalyLogScreen from "./src/screens/guardian/AnomalyLogScreen";
 import SafetyZoneListScreen from "./src/components/guardian/SafetyZoneListScreen";
 import SafetyZoneEditScreen from "./src/components/guardian/SafetyZoneEditScreen";
@@ -486,6 +487,10 @@ function AppContent() {
             <Stack.Screen
               name="ProtegeDetail"
               component={ProtegeDetailScreen}
+            />
+            <Stack.Screen
+              name="GuardianMedicationOverview"
+              component={GuardianMedicationOverviewScreen}
             />
             <Stack.Screen name="AnomalyLog" component={AnomalyLogScreen} />
             <Stack.Screen

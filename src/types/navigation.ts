@@ -23,6 +23,8 @@ export type RootStackParamList = {
   NotificationPreferences: undefined;
   /** 피보호자 상세 대시보드 (안전구역/복약 미리보기 + 진입). */
   ProtegeDetail: { protegeId: number };
+  /** 보호자 — 피보호자 "오늘 복약 한눈에" 오버뷰(순응도 + 시간대 타임라인). */
+  GuardianMedicationOverview: { protegeId: number };
   /** 피보호자 이상감지(활동 이상·복약 미복용) 기록 목록. */
   AnomalyLog: { protegeId: number };
   SafetyZoneList: { protegeId: number };
