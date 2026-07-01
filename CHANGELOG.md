@@ -9,6 +9,29 @@
 
 ---
 
+## 2026-07-01 · 복약 편집 화면 전면 봉지(DoseGroup)화
+
+### 무엇을 / 왜
+`MedicationEditScreen` 저장을 평면 CRUD에서 봉지 API로 전면 전환. 시각 이동 시 scheduleId를
+보존(복용기록/알람 연속성)하고, AUTO(CODEF 자동) 봉지는 편집을 제한한다.
+(앞선 연동 1·2·3단계: 조회 복구 + today 4-2 + 편집 시각이동 4-3 에 이은 마무리.)
+
+### 변경
+- `services/medicationService.ts`: `createMedicationGroup`(4-5), `addMedicationPacket`,
+  `updateMedicationPacket`(4-4), `deleteMedicationPacket`(4-6), `deleteMedicationGroup`(4-6),
+  `renameMedicationGroup` 추가 (`moveMedicationPacketTime`은 기존).
+- `hooks/useMedications.ts`: 대응 훅 6개 추가(onSettled에 schedule 목록 + today 무효화).
+- `screens/shared/MedicationEditScreen.tsx`: 저장 로직 봉지 API 전환
+  - 신규 = `createGroup`, 수정 = 이름 PATCH(MANUAL) / 속성 4-4 / 이동 4-3+속성 / 추가(MANUAL) / 삭제,
+    삭제 버튼 = `deleteGroup`.
+  - AUTO 봉지: 약 이름 입력 잠금 + 안내, 시각 추가 시 차단(toast).
+- 평면 CRUD 훅(`useCreate/Update/DeleteMedicationSchedule`)은 편집 화면에서 미사용(존치).
+
+### 검증
+- `npx tsc --noEmit` 통과(무관 기존 에러 2건 제외). 실제 구동은 백엔드 편집 API 배포 후 가능.
+
+---
+
 ## 2026-06-30 · 고령자 본인 복약 안전분석(warnings) 진입·UI 제거
 
 작업 브랜치: `chore/remove-hospital-navigation` (아직 커밋 전, 직전 작업에 이어서)

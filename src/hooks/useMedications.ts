@@ -23,14 +23,22 @@ import {
   getMedicationSchedules,
   getMedicationLogsByDate,
   getMedicationToday,
+  createMedicationGroup,
+  addMedicationPacket,
+  updateMedicationPacket,
+  deleteMedicationPacket,
+  deleteMedicationGroup,
+  renameMedicationGroup,
   moveMedicationPacketTime,
   takeMedication,
   updateMedicationSchedule,
 } from "../services/medicationService";
 import type {
   CreateMedicationScheduleInput,
+  DayOfWeek,
   MedicationLog,
   MedicationSchedule,
+  MedicationScheduleType,
   TakeMedicationInput,
   TodayMedicationSlot,
   UpdateMedicationScheduleInput,
@@ -277,6 +285,144 @@ export function useMoveMedicationPacketTime() {
     }) => moveMedicationPacketTime(protegeId, groupId, fromTime, toTime),
 
     onSettled: (_data, _err, { protegeId }) => {
+      qc.invalidateQueries({ queryKey: medicationKeys.scheduleList(protegeId) });
+      qc.invalidateQueries({ queryKey: [...medicationKeys.all, "today"] });
+    },
+  });
+}
+
+/** 수동 봉지(약) 생성(4-5). */
+export function useCreateMedicationGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      protegeId,
+      input,
+    }: {
+      protegeId: number;
+      input: {
+        medicationName: string;
+        packets: {
+          scheduledTime: string;
+          scheduleType: MedicationScheduleType;
+          daysOfWeek: DayOfWeek[];
+          startDate?: string | null;
+          endDate?: string | null;
+        }[];
+      };
+    }) => createMedicationGroup(protegeId, input),
+    onSettled: (_d, _e, { protegeId }) => {
+      qc.invalidateQueries({ queryKey: medicationKeys.scheduleList(protegeId) });
+      qc.invalidateQueries({ queryKey: [...medicationKeys.all, "today"] });
+    },
+  });
+}
+
+/** 봉지에 시각 추가(MANUAL). */
+export function useAddMedicationPacket() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      protegeId,
+      groupId,
+      input,
+    }: {
+      protegeId: number;
+      groupId: string;
+      input: {
+        scheduledTime: string;
+        scheduleType: MedicationScheduleType;
+        daysOfWeek: DayOfWeek[];
+        startDate?: string | null;
+        endDate?: string | null;
+      };
+    }) => addMedicationPacket(protegeId, groupId, input),
+    onSettled: (_d, _e, { protegeId }) => {
+      qc.invalidateQueries({ queryKey: medicationKeys.scheduleList(protegeId) });
+      qc.invalidateQueries({ queryKey: [...medicationKeys.all, "today"] });
+    },
+  });
+}
+
+/** 봉지 속성(유형/요일/기간) 변경(4-4). */
+export function useUpdateMedicationPacket() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      protegeId,
+      groupId,
+      scheduledTime,
+      input,
+    }: {
+      protegeId: number;
+      groupId: string;
+      scheduledTime: string;
+      input: {
+        scheduleType: MedicationScheduleType;
+        daysOfWeek: DayOfWeek[];
+        startDate?: string | null;
+        endDate?: string | null;
+      };
+    }) => updateMedicationPacket(protegeId, groupId, scheduledTime, input),
+    onSettled: (_d, _e, { protegeId }) => {
+      qc.invalidateQueries({ queryKey: medicationKeys.scheduleList(protegeId) });
+      qc.invalidateQueries({ queryKey: [...medicationKeys.all, "today"] });
+    },
+  });
+}
+
+/** 봉지(시각) 삭제(4-6). */
+export function useDeleteMedicationPacket() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      protegeId,
+      groupId,
+      scheduledTime,
+    }: {
+      protegeId: number;
+      groupId: string;
+      scheduledTime: string;
+    }) => deleteMedicationPacket(protegeId, groupId, scheduledTime),
+    onSettled: (_d, _e, { protegeId }) => {
+      qc.invalidateQueries({ queryKey: medicationKeys.scheduleList(protegeId) });
+      qc.invalidateQueries({ queryKey: [...medicationKeys.all, "today"] });
+    },
+  });
+}
+
+/** 봉지(약/처방) 통째 삭제(4-6). */
+export function useDeleteMedicationGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      protegeId,
+      groupId,
+    }: {
+      protegeId: number;
+      groupId: string;
+    }) => deleteMedicationGroup(protegeId, groupId),
+    onSettled: (_d, _e, { protegeId }) => {
+      qc.invalidateQueries({ queryKey: medicationKeys.scheduleList(protegeId) });
+      qc.invalidateQueries({ queryKey: [...medicationKeys.all, "today"] });
+    },
+  });
+}
+
+/** 봉지 이름 변경(MANUAL). */
+export function useRenameMedicationGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      protegeId,
+      groupId,
+      medicationName,
+    }: {
+      protegeId: number;
+      groupId: string;
+      medicationName: string;
+    }) => renameMedicationGroup(protegeId, groupId, medicationName),
+    onSettled: (_d, _e, { protegeId }) => {
       qc.invalidateQueries({ queryKey: medicationKeys.scheduleList(protegeId) });
       qc.invalidateQueries({ queryKey: [...medicationKeys.all, "today"] });
     },
